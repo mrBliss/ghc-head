@@ -532,6 +532,10 @@ tc_hs_type hs_ty@(HsTyLit (HsStrTy s)) exp_kind
        ; checkWiredInTyCon typeSymbolKindCon
        ; return (mkStrLitTy s) }
 
+
+tc_hs_type HsWildcardTy (EK k _) = newFlexiTyVarTy k
+
+
 ---------------------------
 tupKindSort_maybe :: TcKind -> Maybe TupleSort
 tupKindSort_maybe k
