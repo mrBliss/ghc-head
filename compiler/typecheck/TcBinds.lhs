@@ -198,7 +198,7 @@ tcHsBootSigs (ValBindsOut binds sigs)
   = do  { checkTc (null binds) badBootDeclErr
         ; concat <$> mapM (addLocM tc_boot_sig) (filter isTypeLSig sigs) }
   where
-    tc_boot_sig (TypeSig lnames ty) = mapM f lnames
+    tc_boot_sig (TypeSig lnames ty _) = mapM f lnames
       where
         f (L _ name) = do  { sigma_ty <- tcHsSigType (FunSigCtxt name) ty
                            ; return (mkVanillaGlobal name sigma_ty) }
@@ -1232,10 +1232,10 @@ tcTySig :: LSig Name -> TcM [TcSigInfo]
 tcTySig (L loc (IdSig id))
   = do { sig <- instTcTySigFromId loc id
        ; return [sig] }
-tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty))
+tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty extra))
   = setSrcSpan loc $ 
     do { sigma_ty <- tcHsSigType (FunSigCtxt name1) hs_ty
-       ; mapM (instTcTySig hs_ty sigma_ty) (map unLoc names) }
+       ; mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names) }
 tcTySig _ = return []
 
 instTcTySigFromId :: SrcSpan -> Id -> TcM TcSigInfo
@@ -1244,7 +1244,8 @@ instTcTySigFromId loc id
                                          (idType id)
        ; return (TcSigInfo { sig_id = id, sig_loc = loc
                            , sig_tvs = [(Nothing, tv) | tv <- tvs]
-                           , sig_theta = theta, sig_tau = tau }) }
+                           , sig_theta = theta, sig_tau = tau
+                           , sig_extra = Nothing }) }
   where
     -- Hack: in an instance decl we use the selector id as
     -- the template; but we do *not* want the SrcSpan on the Name of
@@ -1252,13 +1253,19 @@ instTcTySigFromId loc id
     -- the instance decl
 
 instTcTySig :: LHsType Name -> TcType    -- HsType and corresponding TcType
+            -> Bool                      -- Extra-constraints wildcard present
             -> Name -> TcM TcSigInfo
-instTcTySig hs_ty@(L loc _) sigma_ty name
+instTcTySig hs_ty@(L loc _) sigma_ty extra name
   = do { (inst_tvs, theta, tau) <- tcInstType tcInstSigTyVars sigma_ty
+       ; extraConstraints <- if extra
+                             then fmap Just (newFlexiTyVar constraintKind)
+                             else return Nothing
+
        ; return (TcSigInfo { sig_id = mkLocalId name sigma_ty
                            , sig_loc = loc
                            , sig_tvs = findScopedTyVars hs_ty sigma_ty inst_tvs
-                           , sig_theta = theta, sig_tau = tau }) }
+                           , sig_theta = theta, sig_tau = tau
+                           , sig_extra = extraConstraints }) }
 
 -------------------------------
 data GeneralisationPlan
