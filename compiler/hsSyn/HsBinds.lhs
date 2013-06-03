@@ -388,7 +388,7 @@ plusHsValBinds _ _
 getTypeSigNames :: HsValBinds a -> NameSet
 -- Get the names that have a user type sig
 getTypeSigNames (ValBindsOut _ sigs)
-  = mkNameSet [unLoc n | L _ (TypeSig names _) <- sigs, n <- names]
+  = mkNameSet [unLoc n | L _ (TypeSig names _ _) <- sigs, n <- names]
 getTypeSigNames _
   = panic "HsBinds.getTypeSigNames"
 \end{code}
@@ -540,7 +540,9 @@ type LSig name = Located (Sig name)
 data Sig name   
   =   -- | An ordinary type signature
       -- @f :: Num a => a -> a@
-    TypeSig [Located name] (LHsType name)
+      -- The Bool indicates the presence of an extra constraints
+      -- wildcard, e.g. @f :: (Num a, _) => a -> a@
+    TypeSig [Located name] (LHsType name) Bool
 
       -- | A pattern synonym type signature
       -- @pattern (Eq b) => P a b :: (Num a) => T a
@@ -696,7 +698,9 @@ instance (OutputableBndr name) => Outputable (Sig name) where
     ppr sig = ppr_sig sig
 
 ppr_sig :: OutputableBndr name => Sig name -> SDoc
-ppr_sig (TypeSig vars ty)         = pprVarSig (map unLoc vars) (ppr ty)
+ppr_sig (TypeSig vars ty extra)   = pprVarSig (map unLoc vars) (extraText <+> ppr ty)
+  where extraText | extra = text "_ =>"  -- TODO print the extra ct wc
+                  | True  = empty
 ppr_sig (GenericSig vars ty)      = ptext (sLit "default") <+> pprVarSig (map unLoc vars) (ppr ty)
 ppr_sig (IdSig id)                = pprVarSig [id] (ppr (varType id))
 ppr_sig (FixSig fix_sig)          = ppr fix_sig
