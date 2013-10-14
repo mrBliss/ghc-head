@@ -293,6 +293,11 @@ rnHsTyKi isType _ HsWildcardTy
   = ASSERT( isType )
     return (HsWildcardTy, emptyFVs)
 
+rnHsTyKi isType _ (HsNamedWildcardTy rdr_name)
+  = do { name <- rnTyVar isType rdr_name -- TODOT what to do?
+       ; return (HsNamedWildcardTy name, emptyFVs) }
+
+
 --------------
 rnTyVar :: Bool -> RdrName -> RnM Name
 rnTyVar is_type rdr_name
@@ -962,6 +967,7 @@ extract_lty (L _ ty) acc
                                    extract_lctxt cx   $
                                    extract_lty ty ([],[])
       HsWildcardTy              -> acc
+      HsNamedWildcardTy tv      -> extract_tv tv acc
 
 extract_hs_tv_bndrs :: LHsTyVarBndrs RdrName -> FreeKiTyVars
                     -> FreeKiTyVars -> FreeKiTyVars

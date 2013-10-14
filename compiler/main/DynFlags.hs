@@ -584,6 +584,7 @@ data ExtensionFlag
    | Opt_NegativeLiterals
    | Opt_EmptyCase
    | Opt_PatternSynonyms
+   | Opt_NamedWildcards
    deriving (Eq, Enum, Show)
 
 -- | Contains not only a collection of 'GeneralFlag's but also a plethora of
@@ -2837,6 +2838,7 @@ xFlags = [
   ( "ImplicitParams",                   Opt_ImplicitParams, nop ),
   ( "ScopedTypeVariables",              Opt_ScopedTypeVariables, nop ),
   ( "AllowAmbiguousTypes",              Opt_AllowAmbiguousTypes, nop),
+  ( "NamedWildcards",                   Opt_NamedWildcards, nop ),
 
   ( "PatternSignatures",                Opt_ScopedTypeVariables,
     deprecatedForExtension "ScopedTypeVariables" ),

@@ -31,7 +31,7 @@ import TysWiredIn       ( unitTyCon, unitDataCon, tupleTyCon, tupleCon, nilDataC
                           listTyCon_RDR, parrTyCon_RDR, consDataCon_RDR, eqTyCon_RDR )
 import Type             ( funTyCon )
 import ForeignCall
-import OccName          ( varName, dataName, tcClsName, tvName )
+import OccName          ( varName, dataName, tcClsName, tvName, startsWithUnderscore )
 import DataCon          ( DataCon, dataConName )
 import SrcLoc
 import Module
@@ -1135,7 +1135,12 @@ btype :: { LHsType RdrName }
 
 atype :: { LHsType RdrName }
         : ntgtycon                       { L1 (HsTyVar (unLoc $1)) }      -- Not including unit tuples
-        | tyvar                          { L1 (HsTyVar (unLoc $1)) }      -- (See Note [Unit tuples])
+                                         -- (See Note [Unit tuples])
+        | tyvar                          {% do { nwc <- namedWildcardsEnabled
+                                               ; let tv@(Unqual name) = unLoc $1
+                                               ; if (startsWithUnderscore name && nwc)
+                                                   then return (L1 (HsNamedWildcardTy tv))
+                                                   else return (L1 (HsTyVar tv)) } }
         | strict_mark atype              { LL (HsBangTy (unLoc $1) $2) }  -- Constructor sigs only
         | '{' fielddecls '}'             {% checkRecordSyntax (LL $ HsRecTy $2) } -- Constructor sigs only
         | '(' ')'                        { LL $ HsTupleTy HsBoxedOrConstraintTuple []      }
@@ -2311,4 +2316,8 @@ hintExplicitForall span = do
       , text "Perhaps you intended to use RankNTypes or a similar language"
       , text "extension to enable explicit-forall syntax: \x2200 <tvs>. <type>"
       ]
+
+namedWildcardsEnabled :: P Bool
+namedWildcardsEnabled = liftM ((Opt_NamedWildcards `xopt`) . dflags) getPState
+
 }
