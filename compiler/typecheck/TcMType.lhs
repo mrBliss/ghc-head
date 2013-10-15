@@ -59,7 +59,7 @@ module TcMType (
   zonkTcKind, defaultKindVarToStar,
   zonkEvVar, zonkWC, zonkFlats, zonkId, zonkCt, zonkCts, zonkSkolemInfo,
 
-  tcGetGlobalTyVars, 
+  tcGetGlobalTyVars, tcMetaTyVarForNwc,
   ) where
 
 #include "HsVersions.h"
@@ -977,6 +977,32 @@ zonkTcTyVar tv
 zonkTcKind :: TcKind -> TcM TcKind
 zonkTcKind k = zonkTcType k
 \end{code}
-    
+
+
+
+%************************************************************************
+%*									*
+	Named Wildcards
+%*									*
+%************************************************************************
+
+\begin{code}
+
+-- Get the meta type variable that will replace the named wildcard
+-- (nwc) (passed as the name of the nwc). If it's the first occurrence
+-- of the nwc, return a new meta type variable and store the mapping
+-- (in a Map within a TcRef). If the same nwc is encountered again,
+-- the same meta type variable will be returned.
+tcMetaTyVarForNwc :: Name -> TcKind -> TcM TcType
+tcMetaTyVarForNwc name k =
+  do { (TcLclEnv {tcl_named_wildcards = nwc_map_ref}) <- getLclEnv
+     ; nwc_map <- readMutVar nwc_map_ref
+     ; case lookupNamedWildcard name nwc_map of -- TODOT check kind?
+       Just ty -> return ty
+       Nothing -> do { metaTyVarTy <- newFlexiTyVarTy k
+                     ; updMutVar nwc_map_ref (insertNamedWildcard name metaTyVarTy)
+                     ; return metaTyVarTy } }
+
+\end{code}
 
 

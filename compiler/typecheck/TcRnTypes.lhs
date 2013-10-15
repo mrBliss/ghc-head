@@ -79,6 +79,10 @@ module TcRnTypes(
         pprEvVars, pprEvVarWithType,
         pprArising, pprArisingAt,
 
+        -- Named wildcards
+        NamedWildcardMap, emptyNamedWildcardMap, lookupNamedWildcard,
+        insertNamedWildcard,
+
         -- Misc other types
         TcId, TcIdSet, TcTyVarBind(..), TcTyVarBinds
 
@@ -119,11 +123,14 @@ import DynFlags
 import Outputable
 import ListSetOps
 import FastString
+import Util
 
-import Data.Set (Set)
+import qualified Data.Map as Map
+import Data.Map      ( Map )
+import Data.Ord      ( comparing )
+import Data.Set      ( Set )
 
 #ifdef GHCI
-import Data.Map      ( Map )
 import Data.Dynamic  ( Dynamic )
 import Data.Typeable ( TypeRep )
 
@@ -495,8 +502,25 @@ data TcLclEnv           -- Changes as we move inside an expression
                         -- Why mutable? see notes with tcGetGlobalTyVars
 
         tcl_lie  :: TcRef WantedConstraints,    -- Place to accumulate type constraints
-        tcl_errs :: TcRef Messages              -- Place to accumulate errors
+        tcl_errs :: TcRef Messages,             -- Place to accumulate errors
+        tcl_named_wildcards :: TcRef NamedWildcardMap -- Maps named wildcards to types
+                            -- Used to desugar named wildcards to meta variables.
+                            -- All named wildcards with the same name within one signature
+                            -- (TODOT scoped?) will be replaced by occurrences of the
+                            -- same metavariable.
     }
+
+-- TODOT better location
+type NamedWildcardMap = Map Name TcType
+
+emptyNamedWildcardMap :: NamedWildcardMap
+emptyNamedWildcardMap = Map.empty
+
+lookupNamedWildcard :: Name -> NamedWildcardMap -> Maybe TcType
+lookupNamedWildcard = Map.lookup
+
+insertNamedWildcard :: Name -> TcType -> NamedWildcardMap -> NamedWildcardMap
+insertNamedWildcard = Map.insert
 
 type TcTypeEnv = NameEnv TcTyThing
 
