@@ -306,7 +306,6 @@ tcCheckHsTypeAndGen hs_ty kind
        ; kvs <- kindGeneralize kvs
        ; return (mkForAllTys kvs ty) }
 
--- TODOT replace the named wildcards with fresh uvars
 \end{code}
 
 Like tcExpr, tc_hs_type takes an expected kind which it unifies with
@@ -532,8 +531,7 @@ tc_hs_type hs_ty@(HsTyLit (HsStrTy s)) exp_kind
 
 tc_hs_type HsWildcardTy (EK k _) = newFlexiTyVarTy k
 
--- TODOT case HsNamedWildcardTy
-
+tc_hs_type (HsNamedWildcardTy name) (EK k _) = tcMetaTyVarForNwc name k
 
 ---------------------------
 tupKindSort_maybe :: TcKind -> Maybe TupleSort
