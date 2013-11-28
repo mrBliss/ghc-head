@@ -127,7 +127,6 @@ import Util
 
 import qualified Data.Map as Map
 import Data.Map      ( Map )
-import Data.Ord      ( comparing )
 import Data.Set      ( Set )
 
 #ifdef GHCI
