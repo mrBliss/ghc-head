@@ -312,9 +312,11 @@ instance Outputable MetaDetails where
   ppr (Indirect ty) = ptext (sLit "Indirect") <+> ppr ty
 
 data MetaInfo
-   = TauTv         -- This MetaTv is an ordinary unification variable
+   = TauTv Bool    -- This MetaTv is an ordinary unification variable
                    -- A TauTv is always filled in with a tau-type, which
-                   -- never contains any ForAlls
+                   -- never contains any ForAlls.
+                   -- The boolean is true when the meta var originates
+                   -- from a wildcard.
 
    | PolyTv        -- Like TauTv, but can unify with a sigma-type
 
@@ -482,9 +484,9 @@ pprTcTyVarDetails (MetaTv { mtv_info = info, mtv_untch = untch })
   = pp_info <> brackets (ppr untch)
   where
     pp_info = case info of
-                PolyTv -> ptext (sLit "poly")
-                TauTv  -> ptext (sLit "tau")
-                SigTv  -> ptext (sLit "sig")
+                PolyTv  -> ptext (sLit "poly")
+                TauTv _ -> ptext (sLit "tau")
+                SigTv   -> ptext (sLit "sig")
 
 pprUserTypeCtxt :: UserTypeCtxt -> SDoc
 pprUserTypeCtxt (InfSigCtxt n)    = ptext (sLit "the inferred type for") <+> quotes (ppr n)
@@ -1117,12 +1119,12 @@ occurCheckExpand dflags tv ty
 
     impredicative
       = case details of
-          MetaTv { mtv_info = PolyTv } -> True
-          MetaTv { mtv_info = SigTv }  -> False
-          MetaTv { mtv_info = TauTv }  -> xopt Opt_ImpredicativeTypes dflags
-                                       || isOpenTypeKind (tyVarKind tv)
-                                          -- Note [OpenTypeKind accepts foralls]
-                                          -- in TcUnify
+          MetaTv { mtv_info = PolyTv }  -> True
+          MetaTv { mtv_info = SigTv }   -> False
+          MetaTv { mtv_info = TauTv _ } -> xopt Opt_ImpredicativeTypes dflags
+                                        || isOpenTypeKind (tyVarKind tv)
+                                        -- Note [OpenTypeKind accepts foralls]
+                                        -- in TcUnify
           _other                       -> True
           -- We can have non-meta tyvars in given constraints
 

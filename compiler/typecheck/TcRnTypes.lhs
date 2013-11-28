@@ -121,7 +121,6 @@ import DynFlags
 import Outputable
 import ListSetOps
 import FastString
-import Util
 
 import qualified Data.Map as Map
 import Data.Map      ( Map )

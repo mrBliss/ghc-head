@@ -58,7 +58,14 @@ module TcMType (
   zonkTcKind, defaultKindVarToStar,
   zonkEvVar, zonkWC, zonkId, zonkCt, zonkCts, zonkSkolemInfo,
 
-  tcGetGlobalTyVars, tcMetaTyVarForNwc,
+  tcGetGlobalTyVars,
+
+  --------------------------------
+  -- (Named) Wildcards
+  newWildcardVar, newWildcardTy,
+  tcMetaTyVarForNwc, isWildcardVar, isWildcardTy,
+  containsWildcards
+
   ) where
 
 #include "HsVersions.h"
@@ -106,7 +113,7 @@ kind_var_occ = mkOccName tvName "k"
 
 newMetaKindVar :: TcM TcKind
 newMetaKindVar = do { uniq <- newUnique
-		    ; details <- newMetaDetails TauTv
+		    ; details <- newMetaDetails (TauTv False)
                     ; let kv = mkTcTyVar (mkKindName uniq) superKind details
 		    ; return (mkTyVarTy kv) }
 
@@ -323,9 +330,10 @@ newMetaTyVar meta_info kind
   = do	{ uniq <- newUnique
         ; let name = mkTcTyVarName uniq s
               s = case meta_info of
-                        PolyTv -> fsLit "s"
-                        TauTv  -> fsLit "t"
-                        SigTv  -> fsLit "a"
+                        PolyTv      -> fsLit "s"
+                        TauTv True  -> fsLit "tw"
+                        TauTv False -> fsLit "t"
+                        SigTv       -> fsLit "a"
         ; details <- newMetaDetails meta_info
 	; return (mkTcTyVar name kind details) }
 
@@ -434,7 +442,7 @@ writeMetaTyVarRef tyvar ref ty
 
 \begin{code}
 newFlexiTyVar :: Kind -> TcM TcTyVar
-newFlexiTyVar kind = newMetaTyVar TauTv kind
+newFlexiTyVar kind = newMetaTyVar (TauTv False) kind
 
 newFlexiTyVarTy  :: Kind -> TcM TcType
 newFlexiTyVarTy kind = do
@@ -469,7 +477,7 @@ tcInstTyVarX :: TvSubst -> TKVar -> TcM (TvSubst, TcTyVar)
 -- an existing TyVar. We substitute kind variables in the kind.
 tcInstTyVarX subst tyvar
   = do  { uniq <- newUnique
-        ; details <- newMetaDetails TauTv
+        ; details <- newMetaDetails (TauTv False)
         ; let name   = mkSystemName uniq (getOccName tyvar)
               kind   = substTy subst (tyVarKind tyvar)
               new_tv = mkTcTyVar name kind details 
@@ -998,11 +1006,19 @@ zonkTcKind k = zonkTcType k
 
 %************************************************************************
 %*									*
-	Named Wildcards
+	(Named) Wildcards
 %*									*
 %************************************************************************
 
 \begin{code}
+
+newWildcardVar :: Kind -> TcM TcTyVar
+newWildcardVar kind = newMetaTyVar (TauTv True) kind
+
+newWildcardTy  :: Kind -> TcM TcType
+newWildcardTy kind = do
+    tc_tyvar <- newWildcardVar kind
+    return (TyVarTy tc_tyvar)
 
 -- Get the meta type variable that will replace the named wildcard
 -- (nwc) (passed as the name of the nwc). If it's the first occurrence
@@ -1015,10 +1031,26 @@ tcMetaTyVarForNwc name k =
      ; nwc_map <- readMutVar nwc_map_ref
      ; case lookupNamedWildcard name nwc_map of -- TODOT check kind?
        Just ty -> return ty
-       Nothing -> do { metaTyVarTy <- newFlexiTyVarTy k
+       Nothing -> do { metaTyVarTy <- newWildcardTy k
                      ; updMutVar nwc_map_ref (insertNamedWildcard name metaTyVarTy)
                      ; return metaTyVarTy } }
 
+isWildcardVar :: TcTyVar -> Bool
+isWildcardVar tv | MetaTv (TauTv True) _ _ <- tcTyVarDetails tv = True
+isWildcardVar _ = False
+
+isWildcardTy :: TcType -> Bool
+isWildcardTy (TyVarTy tv) = isWildcardVar tv
+isWildcardTy _ = False
+
+containsWildcards :: TcType -> Bool
+containsWildcards ty = case ty of
+  TyVarTy tv     -> isWildcardVar tv
+  AppTy ty1 ty2  -> containsWildcards ty1 || containsWildcards ty2
+  TyConApp _ tys -> any containsWildcards tys
+  FunTy ty1 ty2  -> containsWildcards ty1 || containsWildcards ty2
+  ForAllTy _ ty  -> containsWildcards ty
+  LitTy _        -> False
 \end{code}
 
 

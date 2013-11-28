@@ -65,7 +65,7 @@ import NameEnv
 import TysWiredIn
 import BasicTypes
 import SrcLoc
-import DynFlags ( ExtensionFlag( Opt_DataKinds ), getDynFlags )
+import DynFlags ( ExtensionFlag( Opt_DataKinds, Opt_NamedWildcards ), getDynFlags )
 import Unique
 import UniqSupply
 import Outputable
@@ -529,7 +529,7 @@ tc_hs_type hs_ty@(HsTyLit (HsStrTy s)) exp_kind
        ; return (mkStrLitTy s) }
 
 
-tc_hs_type HsWildcardTy (EK k _) = newFlexiTyVarTy k
+tc_hs_type HsWildcardTy (EK k _) = newWildcardTy k
 
 tc_hs_type (HsNamedWildcardTy name) (EK k _) = tcMetaTyVarForNwc name k
 
@@ -1147,7 +1147,12 @@ tcHsTyVarBndrs :: LHsTyVarBndrs Name
 tcHsTyVarBndrs (HsQTvs { hsq_kvs = kv_ns, hsq_tvs = hs_tvs }) thing_inside
   = do { kvs <- mapM mkKindSigVar kv_ns
        ; tcExtendTyVarEnv kvs $ do 
-       { tvs <- mapM tcHsTyVarBndr hs_tvs
+       { namedWildcardsOn <- xoptM Opt_NamedWildcards
+       ; let isNamedWildcardName = startsWithUnderscore . occName
+             hs_tvs' = filter (\varBndr -> not $ isNamedWildcardName $ case unLoc varBndr of
+                                  UserTyVar name -> name
+                                  KindedTyVar name _ -> name) hs_tvs
+       ; tvs <- mapM tcHsTyVarBndr $ if namedWildcardsOn then hs_tvs' else hs_tvs
        ; traceTc "tcHsTyVarBndrs {" (vcat [ text "Hs kind vars:" <+> ppr kv_ns
                                         , text "Hs type vars:" <+> ppr hs_tvs
                                         , text "Kind vars:" <+> ppr kvs

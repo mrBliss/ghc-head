@@ -457,9 +457,10 @@ tcPolyBinds top_lvl sig_fn prag_fn rec_group rec_tc bind_list
                          binder_names bind_list sig_fn
     ; traceTc "Generalisation plan" (ppr plan)
     ; result@(tc_binds, poly_ids, _) <- case plan of
-         NoGen               -> tcPolyNoGen rec_tc prag_fn sig_fn bind_list
-         InferGen mn cl      -> tcPolyInfer rec_tc prag_fn sig_fn mn cl bind_list
-         CheckGen lbind sig  -> tcPolyCheck rec_tc prag_fn sig lbind
+         NoGen                  -> tcPolyNoGen rec_tc prag_fn sig_fn bind_list
+         InferGen mn cl         -> tcPolyInfer rec_tc prag_fn sig_fn mn cl bind_list
+         CheckGen lbind sig     -> tcPolyCheck rec_tc prag_fn sig lbind
+         WcGen lbind sig mn cl  -> tcPolyCombi rec_tc prag_fn sig lbind mn cl
 
         -- Check whether strict bindings are ok
         -- These must be non-recursive etc, and are not generalised
@@ -581,6 +582,47 @@ tcPolyInfer rec_tc prag_fn tc_sig_fn mono closed bind_list
   where
     origin = if all isGenerated (map fst bind_list) then Generated else FromSource
 
+------------------
+tcPolyCombi
+  :: RecFlag       -- Whether it's recursive after breaking
+                   -- dependencies based on type signatures
+  -> PragFun -> TcSigInfo
+  -> (Origin, LHsBind Name)
+  -> Bool         -- True <=> apply the monomorphism restriction
+  -> Bool         -- True <=> free vars have closed types
+  -> TcM (LHsBinds TcId, [TcId], TopLevelFlag)
+-- There is just one binding,
+--   it binds a single variable,
+--   it has a signature,
+tcPolyCombi rec_tc prag_fn sig bind@(origin, _) mono closed
+  -- TODOT clean up after implementing the extra-constraints wildcard
+  = do { -- let skol_info = SigSkol (FunSigCtxt (idName poly_id)) (mkPhiTy theta tau)
+             -- prag_sigs = prag_fn (idName poly_id)
+       -- ; tvs <- mapM (skolemiseSigTv . snd) tvs_w_scoped
+       ; ((binds', mono_infos), wanted)
+             <- captureConstraints $
+                tcMonoBinds rec_tc (\_ -> Just sig) LetLclBndr [bind]
+       ; let name_taus = [(name, idType mono_id) | (name, _, mono_id) <- mono_infos]
+       ; (qtvs, givens, mr_bites, ev_binds) <-
+                          simplifyInfer closed mono name_taus wanted
+
+       ; inferred_theta <- zonkTcThetaType (map evVarPred givens)
+       ; exports <- checkNoErrs $ mapM (mkExport prag_fn qtvs inferred_theta) mono_infos
+
+       ; loc <- getSrcSpanM
+       ; let poly_ids = map abe_poly exports
+             final_closed | closed && not mr_bites = TopLevel
+                          | otherwise              = NotTopLevel
+             abs_bind = L loc $
+                        AbsBinds { abs_tvs = qtvs
+                                 , abs_ev_vars = givens, abs_ev_binds = ev_binds
+                                 , abs_exports = exports, abs_binds = binds' }
+
+       ; traceTc "Binding:" (ppr final_closed $$
+                             ppr (poly_ids `zip` map idType poly_ids))
+       ; return (unitBag (origin, abs_bind), poly_ids, final_closed) }
+         -- poly_ids are guaranteed zonked by mkExport
+
 --------------
 mkExport :: PragFun
          -> [TyVar] -> TcThetaType      -- Both already zonked
@@ -604,7 +646,6 @@ mkExport prag_fn qtvs theta (poly_name, mb_sig, mono_id)
         ; let poly_id  = case mb_sig of
                            Nothing  -> mkLocalId poly_name inferred_poly_ty
                            Just sig -> sig_id sig
-                -- poly_id has a zonked type
 
               -- In the inference case (no signature) this stuff figures out
               -- the right type variables and theta to quantify over
@@ -615,13 +656,21 @@ mkExport prag_fn qtvs theta (poly_name, mb_sig, mono_id)
               my_theta = filter (quantifyPred my_tvs2) theta
               inferred_poly_ty = mkSigmaTy my_tvs my_theta mono_ty
 
-        ; poly_id <- addInlinePrags poly_id prag_sigs
-        ; spec_prags <- tcSpecPrags poly_id prag_sigs
-                -- tcPrags requires a zonked poly_id
+        -- poly_id has to be zonked in case of a partial type signature
+        ; poly_id <- zonkId poly_id
+
+        -- Quantify over left over wildcard vars, i.e. generalise over the wildcards
+        ; let wildcard_tvs = varSetElems $ tyVarsOfType (idType poly_id)
+              poly_id_type = mkSigmaTy wildcard_tvs [] (idType poly_id)
+               -- Only in case of a partial type signature
+              poly_id' = if isJust mb_sig then setIdType poly_id poly_id_type else poly_id
+        ; poly_id' <- addInlinePrags poly_id' prag_sigs
+        ; spec_prags <- tcSpecPrags poly_id' prag_sigs
+                -- tcPrags requires a zonked poly_id'
 
         ; let sel_poly_ty = mkSigmaTy qtvs theta mono_ty
         ; traceTc "mkExport: check sig"
-                  (ppr poly_name $$ ppr sel_poly_ty $$ ppr (idType poly_id))
+                  (ppr poly_name $$ ppr sel_poly_ty $$ ppr (idType poly_id'))
 
         -- Perform the impedence-matching and ambiguity check
         -- right away.  If it fails, we want to fail now (and recover
@@ -630,13 +679,13 @@ mkExport prag_fn qtvs theta (poly_name, mb_sig, mono_id)
         -- closed (unless we are doing NoMonoLocalBinds in which case all bets
         -- are off)
         -- See Note [Impedence matching]
-        ; (wrap, wanted) <- addErrCtxtM (mk_msg poly_id) $
+        ; (wrap, wanted) <- addErrCtxtM (mk_msg poly_id') $
                             captureConstraints $
-                            tcSubType origin sig_ctxt sel_poly_ty (idType poly_id)
+                            tcSubType origin sig_ctxt sel_poly_ty (idType poly_id')
         ; ev_binds <- simplifyTop wanted
 
         ; return (ABE { abe_wrap = mkWpLet (EvBinds ev_binds) <.> wrap
-                      , abe_poly = poly_id
+                      , abe_poly = poly_id'
                       , abe_mono = mono_id
                       , abe_prags = SpecPrags spec_prags }) }
   where
@@ -1304,20 +1353,30 @@ data GeneralisationPlan
                         -- One binding with a signature
                         -- Explicit generalisation; there is an AbsBinds
 
+  | WcGen (Origin, LHsBind Name)
+       TcSigInfo        -- One binding with a partial type signature
+       Bool             --   True <=> apply the MR; generalise only unconstrained type vars
+       Bool             --   True <=> bindings mention only variables with closed types
+                        --            See Note [Bindings with closed types] in TcRnTypes
+
 -- A consequence of the no-AbsBinds choice (NoGen) is that there is
 -- no "polymorphic Id" and "monmomorphic Id"; there is just the one
 
 instance Outputable GeneralisationPlan where
-  ppr NoGen          = ptext (sLit "NoGen")
-  ppr (InferGen b c) = ptext (sLit "InferGen") <+> ppr b <+> ppr c
-  ppr (CheckGen _ s) = ptext (sLit "CheckGen") <+> ppr s
+  ppr NoGen           = ptext (sLit "NoGen")
+  ppr (InferGen b c)  = ptext (sLit "InferGen") <+> ppr b <+> ppr c
+  ppr (CheckGen _ s)  = ptext (sLit "CheckGen") <+> ppr s
+  ppr (WcGen _ s b c) = ptext (sLit "WcGen") <+> ppr s <+> ppr b <+> ppr c
 
 decideGeneralisationPlan
    :: DynFlags -> TcTypeEnv -> [Name]
    -> [(Origin, LHsBind Name)] -> TcSigFun -> GeneralisationPlan
 decideGeneralisationPlan dflags type_env bndr_names lbinds sig_fn
   | strict_pat_binds                                 = NoGen
-  | Just (lbind, sig) <- one_funbind_with_sig lbinds = CheckGen lbind sig
+  | Just (lbind, sig) <- one_funbind_with_sig lbinds = if containsWildcards (sig_tau sig) ||
+                                                          isJust (sig_extra sig)
+                                                       then WcGen lbind sig mono_restriction closed_flag
+                                                       else CheckGen lbind sig
   | mono_local_binds                                 = NoGen
   | otherwise                                        = InferGen mono_restriction closed_flag
 
