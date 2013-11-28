@@ -530,6 +530,8 @@ tcExtendLocalTypeEnv tc_ty_things
           TopLevel    -> ASSERT2( isEmptyVarSet (tyVarsOfType (idType id)), ppr id $$ ppr (idType id) )
                          tvs
           NotTopLevel -> tvs `unionVarSet` tyVarsOfType (idType id)
+          -- TODOT replace @tyVarsOfType (idType id)@ with
+          -- @filterVarSet (not . isWildcardVar) $ tyVarsOfType (idType id)@?
 
     get_tvs (_, ATyVar _ tv) tvs          -- See Note [Global TyVars]
       = tvs `unionVarSet` tyVarsOfType (tyVarKind tv) `extendVarSet` tv

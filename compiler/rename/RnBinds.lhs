@@ -858,8 +858,8 @@ findDupSigs sigs
   where
     expand_sig sig@(FixSig (FixitySig n _)) = [(n,sig)]
     expand_sig sig@(InlineSig n _)          = [(n,sig)]
-    expand_sig sig@(TypeSig  ns _)   = [(n,sig) | n <- ns]
-    expand_sig sig@(GenericSig ns _) = [(n,sig) | n <- ns]
+    expand_sig sig@(TypeSig  ns _ _)        = [(n,sig) | n <- ns]
+    expand_sig sig@(GenericSig ns _)        = [(n,sig) | n <- ns]
     expand_sig _ = []
 
     matching_sig (L _ n1,sig1) (L _ n2,sig2) = n1 == n2 && mtch sig1 sig2
