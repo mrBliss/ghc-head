@@ -174,7 +174,8 @@ initTc hsc_env hsc_src keep_rn_syntax mod do_this
                 tcl_tyvars          = tvs_var,
                 tcl_lie             = lie_var,
                 tcl_untch           = noUntouchables,
-                tcl_named_wildcards = named_wc_map
+                tcl_named_wildcards = named_wc_map,
+                tcl_tv_substs       = []
              } ;
         } ;
 
