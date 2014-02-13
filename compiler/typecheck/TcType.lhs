@@ -475,9 +475,10 @@ pprTcTyVarDetails (MetaTv { mtv_info = info, mtv_untch = untch })
   = pp_info <> brackets (ppr untch)
   where
     pp_info = case info of
-                PolyTv  -> ptext (sLit "poly")
-                TauTv _ -> ptext (sLit "tau")
-                SigTv   -> ptext (sLit "sig")
+                PolyTv      -> ptext (sLit "poly")
+                TauTv True  -> ptext (sLit "tau")
+                TauTv False -> ptext (sLit "twc")
+                SigTv       -> ptext (sLit "sig")
 
 pprUserTypeCtxt :: UserTypeCtxt -> SDoc
 pprUserTypeCtxt (InfSigCtxt n)    = ptext (sLit "the inferred type for") <+> quotes (ppr n)
