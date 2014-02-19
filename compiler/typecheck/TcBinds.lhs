@@ -195,7 +195,7 @@ tcHsBootSigs (ValBindsOut binds sigs)
   = do  { checkTc (null binds) badBootDeclErr
         ; concat <$> mapM (addLocM tc_boot_sig) (filter isTypeLSig sigs) }
   where
-    tc_boot_sig (TypeSig lnames ty _) = mapM f lnames
+    tc_boot_sig (TypeSig lnames ty _ _) = mapM f lnames
       where
         f (L _ name) = do  { sigma_ty <- tcHsSigType (FunSigCtxt name) ty
                            ; return (mkVanillaGlobal name sigma_ty) }
@@ -278,14 +278,14 @@ tcValBinds :: TopLevelFlag
 
 tcValBinds top_lvl binds sigs thing_inside
   = do  {       -- Typecheck the signature
-          (poly_ids, sig_fn, substs) <- tcTySigs sigs
+          (poly_ids, sig_fn, substs, nwc_tvs) <- tcTySigs sigs
         ; updLclEnv (\ env -> env { tcl_tv_substs = substs }) $ do {
         ; let prag_fn = mkPragFun sigs (foldr (unionBags . snd) emptyBag binds)
 
                 -- Extend the envt right away with all 
                 -- the Ids declared with type signatures
-                -- Use tcExtendIdEnv2 to avoid extending the TcIdBinder stack
-        ; (binds', thing) <- tcExtendIdEnv2 [(idName id, id) | id <- poly_ids] $
+                -- Use tcExtendIdEnv3 to avoid extending the TcIdBinder stack
+        ; (binds', thing) <- tcExtendIdEnv3 [(idName id, id) | id <- poly_ids] (mkVarSet nwc_tvs) $
                              tcBindGroups top_lvl sig_fn prag_fn 
                                           binds thing_inside
 
@@ -649,32 +649,39 @@ mkExport :: PragFun
 
 mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
   = do  { mono_ty <- zonkTcType (idType mono_id)
-        ; let poly_id  = case mb_sig of
-                           Nothing  -> mkLocalId poly_name inferred_poly_ty
-                           Just sig -> sig_id sig
-
+        ; gbl_tvs <- tcGetGlobalTyVars
               -- In the inference case (no signature) this stuff figures out
               -- the right type variables and theta to quantify over
               -- See Note [Impedence matching]
-              my_tvs2 = closeOverKinds (growThetaTyVars theta (tyVarsOfType mono_ty))
+        ; let wildcard_tvs = case mb_sig of Just sig -> tyVarsOfType (idType (sig_id sig)) `minusVarSet` gbl_tvs
+                                            Nothing -> emptyVarSet
+        ; wildcard_tvs' <- tyVarsOfTypes <$> mapM zonkTcTyVar (varSetElems wildcard_tvs)
+        ; let init_tvs = tyVarsOfType mono_ty `unionVarSet` wildcard_tvs'
+              my_tvs2 = closeOverKinds (growThetaTyVars theta init_tvs)
                             -- Include kind variables!  Trac #7916
-              my_tvs   = filter (`elemVarSet` my_tvs2) qtvs   -- Maintain original order
-              my_theta = filter (quantifyPred my_tvs2) theta
+              -- don't quantify over wildcard variables from the global scope...
+              my_tvs = filter (`elemVarSet` my_tvs2) qtvs   -- Maintain original order
+              my_theta = filter (quantifyPred (mkVarSet my_tvs)) theta
               inferred_poly_ty = mkSigmaTy my_tvs my_theta mono_ty
+              -- Always use the inferred type. In case of a partial type signature, it may contain additional
+              -- quantifications. In case of a non-partial type signature, it's supposed to be equal to the
+              -- annotated type anyway.
+              poly_id = mkLocalId poly_name inferred_poly_ty
+              
 
         -- poly_id has to be zonked in case of a partial type signature
         ; poly_id <- zonkId poly_id
 
         -- Quantify over leftover wildcard vars, i.e. generalise over the wildcards
-        ; let (tvs, ann_theta, ann_tau) = tcSplitSigmaTy (idType poly_id)
-              wildcard_tvs = tyVarsOfType (idType poly_id)
-              substitutedTyVarsAsTys = substTyVars subst tvs
-              substitutedTyVars = map (tcGetTyVar "a type variable") substitutedTyVarsAsTys -- TODOT msg
-              poly_id_type = mkSigmaTy (varSetElems $ wildcard_tvs `minusVarSet` mkVarSet substitutedTyVars)
-                             (substTheta subst ann_theta) (substTy subst ann_tau)
-               -- Only in case of a partial type signature
-              poly_id' = if isJust mb_sig then setIdType poly_id poly_id_type else poly_id
-        ; poly_id' <- addInlinePrags poly_id' prag_sigs
+        -- ; let (tvs, ann_theta, ann_tau) = tcSplitSigmaTy (idType poly_id)
+        --       wildcard_tvs = tyVarsOfType (idType poly_id)
+        --       substitutedTyVarsAsTys = substTyVars subst tvs
+        --       substitutedTyVars = map (tcGetTyVar "a type variable") substitutedTyVarsAsTys -- TODOT msg
+        --       poly_id_type = mkSigmaTy (varSetElems $ wildcard_tvs `minusVarSet` mkVarSet substitutedTyVars)
+        --                      (substTheta subst ann_theta) (substTy subst ann_tau)
+        --        -- Only in case of a partial type signature
+        --       poly_id' = if isJust mb_sig then setIdType poly_id poly_id_type else poly_id
+        ; poly_id' <- addInlinePrags poly_id prag_sigs
         ; spec_prags <- tcSpecPrags poly_id' prag_sigs
                 -- tcPrags requires a zonked poly_id'
 
@@ -1287,23 +1294,28 @@ is wrong (eg at the top level of the module),
 which is over-conservative
 
 \begin{code}
-tcTySigs :: [LSig Name] -> TcM ([TcId], TcSigFun, [TvSubst])
+tcTySigs :: [LSig Name] -> TcM ([TcId], TcSigFun, [TvSubst], [TcTyVar])
 tcTySigs hs_sigs
   = checkNoErrs $   -- See Note [Fail eagerly on bad signatures]
-    do { ty_sigs_s<- mapAndRecoverM tcTySig hs_sigs
+    do { (ty_sigs_s, tyvarsl) <- unzip <$> mapAndRecoverM tcTySig hs_sigs
        ; let (ty_sigs, substs) = unzip $ concat ty_sigs_s
              env = mkNameEnv [(idName (sig_id sig), sig) | sig <- ty_sigs]
-       ; return (map sig_id ty_sigs, lookupNameEnv env, substs) }
+       ; return (map sig_id ty_sigs, lookupNameEnv env, substs, concat tyvarsl) }
 
-tcTySig :: LSig Name -> TcM [(TcSigInfo, TvSubst)]
+tcTySig :: LSig Name -> TcM ([(TcSigInfo, TvSubst)], [TcTyVar])
 tcTySig (L loc (IdSig id))
-  = do { sigAndsubst <- instTcTySigFromId loc id
-       ; return [sigAndsubst] }
-tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty extra))
+  = do { (sig, subst) <- instTcTySigFromId loc id
+       ; return ([(sig,subst)],[]) }
+tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty extra wcs))
   = setSrcSpan loc $ 
-    do { sigma_ty <- tcHsSigType (FunSigCtxt name1) hs_ty
-       ; mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names) }
-tcTySig _ = return []
+    do { nwc_tvs <- mapM newWildcardVarMetaKind wcs
+       ; (TcLclEnv {tcl_named_wildcards = nwc_map_ref}) <- getLclEnv
+       ; updMutVar nwc_map_ref (\ m -> foldr (uncurry insertNamedWildcard) m (zip wcs (map mkTyVarTy nwc_tvs)))
+       ; sigma_ty <- tcHsSigType (FunSigCtxt name1) hs_ty
+       ; sigandsubsts <- mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names)
+       ; return (sigandsubsts, nwc_tvs)
+       }
+tcTySig _ = return ([],[])
 
 instTcTySigFromId :: SrcSpan -> Id -> TcM (TcSigInfo, TvSubst)
 instTcTySigFromId loc id

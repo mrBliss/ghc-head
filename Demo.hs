@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, GADTs #-}
+{-# LANGUAGE RankNTypes, GADTs, NamedWildcards #-}
 module Demo where
 
 ------------------------------------------------------------------------------
@@ -48,9 +48,10 @@ bar x = not x
 -- addAndOr :: (Integer, _) -> (Bool, _) -> ((,) _ Bool)
 -- addAndOr :: (Integer, _) -> (Bool, _) -> (_ Integer Bool)
 -- addAndOr :: (Integer, _) -> (Bool, _) -> ((,) _ _)
+addAndOr :: (Integer, _) -> _ -> _
 -- addAndOr :: (_, _) -> (_, _) -> (_ _ _)
 -- addAndOr :: (_ _ _) -> (_ _ _) -> (_ _ _)
-addAndOr :: _ -> _ -> _
+-- addAndOr :: _ -> _ -> _
 -- addAndOr :: _ -> _
 -- addAndOr :: _
 addAndOr (a, b) (c, d) = (a + d, b || c)
@@ -90,14 +91,11 @@ v = let f :: _ -> _
 
 ------------------------------------------------------------------------------
 
--- In the following definition, generalisation should occur. However,
--- as generalisation is not yet implemented, the free unification
--- variable to generalise over, currently remains in the type,
--- rendering the functions unusable. The resulting type is:
--- "GHC.Prim.Any * -> Bool" instead of "forall a. a -> Bool".
+-- In the following definition, generalisation occurs. The resulting type is: 
+-- "forall a. a -> Bool".
 
--- alwaysTrue :: _ -> _
--- alwaysTrue _ = True
+alwaysTrue :: _ -> _
+alwaysTrue _ = True
 
 ------------------------------------------------------------------------------
 
@@ -111,11 +109,13 @@ v = let f :: _ -> _
 
 
 ------------------------------------------------------------------------------
-
--- Named wildcards aren't implemented either. We predict no
--- implementation issues.
-
--- showTwo :: Show _a => _a -> String
--- showTwo x = show x
+-- Named wildcards work...
+showTwo :: Show _a => _a -> String
+showTwo x = show x
 
 ------------------------------------------------------------------------------
+
+test :: _a -> _a
+test x = let y :: (_a,_a)
+             y = (x,x)
+         in True && x

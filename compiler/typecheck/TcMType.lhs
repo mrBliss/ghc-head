@@ -62,8 +62,8 @@ module TcMType (
 
   --------------------------------
   -- (Named) Wildcards
-  newWildcardVar, newWildcardTy,
-  tcMetaTyVarForNwc, isWildcardVar, isWildcardTy,
+  newWildcardVar, newWildcardTy, newWildcardVarMetaKind,
+  isWildcardVar, isWildcardTy,
   containsWildcards
 
   ) where
@@ -1032,29 +1032,17 @@ zonkTcKind k = zonkTcType k
 
 \begin{code}
 
-newWildcardVar :: Maybe Name -> Kind -> TcM TcTyVar
-newWildcardVar Nothing kind = newMetaTyVar (TauTv True) kind
-newWildcardVar (Just name) kind = newNamedMetaTyVar name (TauTv True) kind
+newWildcardVar :: Name -> Kind -> TcM TcTyVar
+newWildcardVar name kind = newNamedMetaTyVar name (TauTv True) kind
 
-newWildcardTy  :: Maybe Name -> Kind -> TcM TcType
+newWildcardVarMetaKind :: Name -> TcM TcTyVar
+newWildcardVarMetaKind name = do kind <- newMetaKindVar
+                                 newWildcardVar name kind
+
+newWildcardTy  :: Name -> Kind -> TcM TcType
 newWildcardTy name kind = do
     tc_tyvar <- newWildcardVar name kind
     return (TyVarTy tc_tyvar)
-
--- Get the meta type variable that will replace the named wildcard
--- (nwc) (passed as the name of the nwc). If it's the first occurrence
--- of the nwc, return a new meta type variable and store the mapping
--- (in a Map within a TcRef). If the same nwc is encountered again,
--- the same meta type variable will be returned.
-tcMetaTyVarForNwc :: Name -> TcKind -> TcM TcType
-tcMetaTyVarForNwc name k =
-  do { (TcLclEnv {tcl_named_wildcards = nwc_map_ref}) <- getLclEnv
-     ; nwc_map <- readMutVar nwc_map_ref
-     ; case lookupNamedWildcard name nwc_map of -- TODOT check kind?
-       Just ty -> return ty
-       Nothing -> do { metaTyVarTy <- newWildcardTy (Just name) k
-                     ; updMutVar nwc_map_ref (insertNamedWildcard name metaTyVarTy)
-                     ; return metaTyVarTy } }
 
 isWildcardVar :: TcTyVar -> Bool
 isWildcardVar tv | MetaTv (TauTv True) _ _ <- tcTyVarDetails tv = True

@@ -289,14 +289,15 @@ rnHsTyKi isType doc ty@(HsExplicitTupleTy kis tys)
        ; (tys', fvs) <- rnLHsTypes doc tys
        ; return (HsExplicitTupleTy kis tys', fvs) }
 
-rnHsTyKi isType _ HsWildcardTy
-  = ASSERT( isType )
-    return (HsWildcardTy, emptyFVs)
+rnHsTyKi _ _ HsWildcardTy
+  = do traceRn (text "HsWildCardTy in rnHsTyKi!")
+       ASSERT( False ) undefined
+    -- unnamed wildcards should have been transformed into named wildcards with fresh names in renameSigs
 
 rnHsTyKi isType _ (HsNamedWildcardTy rdr_name)
   = do { name <- rnTyVar isType rdr_name -- TODOT what to do?
-       ; return (HsNamedWildcardTy name, emptyFVs) }
-
+       ; return (HsNamedWildcardTy name, unitFV name) }
+    
 
 --------------
 rnTyVar :: Bool -> RdrName -> RnM Name
@@ -967,7 +968,7 @@ extract_lty (L _ ty) acc
                                    extract_lctxt cx   $
                                    extract_lty ty ([],[])
       HsWildcardTy              -> acc
-      HsNamedWildcardTy tv      -> extract_tv tv acc
+      HsNamedWildcardTy _       -> acc
 
 extract_hs_tv_bndrs :: LHsTyVarBndrs RdrName -> FreeKiTyVars
                     -> FreeKiTyVars -> FreeKiTyVars

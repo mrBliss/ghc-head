@@ -755,7 +755,8 @@ checkValSig
         -> P (Sig RdrName)
 checkValSig (L l (HsVar v)) ty extra
   | isUnqual v && not (isDataOcc (rdrNameOcc v))
-  = return (TypeSig [L l v] ty extra)
+  = return (TypeSig [L l v] ty extra [])
+    -- list of wildcards brought in scope will be filled in by the renamer...
 checkValSig lhs@(L l _) ty _
   = parseErrorSDoc l ((text "Invalid type signature:" <+>
                        ppr lhs <+> text "::" <+> ppr ty)

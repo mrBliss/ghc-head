@@ -65,7 +65,7 @@ import NameEnv
 import TysWiredIn
 import BasicTypes
 import SrcLoc
-import DynFlags ( ExtensionFlag( Opt_DataKinds, Opt_NamedWildcards ), getDynFlags )
+import DynFlags ( ExtensionFlag( Opt_DataKinds ), getDynFlags )
 import Unique
 import UniqSupply
 import Outputable
@@ -529,9 +529,25 @@ tc_hs_type hs_ty@(HsTyLit (HsStrTy s)) exp_kind
        ; return (mkStrLitTy s) }
 
 
-tc_hs_type HsWildcardTy (EK k _) = newWildcardTy Nothing k
+tc_hs_type HsWildcardTy (EK _ _) = panic "tc_hs_type HsWildcardTy"
+  -- unnamed wildcards should have been removed in the renamer...
 
-tc_hs_type (HsNamedWildcardTy name) (EK k _) = tcMetaTyVarForNwc name k
+tc_hs_type (HsNamedWildcardTy name) ek = tcMetaTyVarForNwc name ek
+
+-- Get the meta type variable that will replace the named wildcard
+-- (nwc) (passed as the name of the nwc). If it's the first occurrence
+-- of the nwc, return a new meta type variable and store the mapping
+-- (in a Map within a TcRef). If the same nwc is encountered again,
+-- the same meta type variable will be returned.
+tcMetaTyVarForNwc :: Name -> ExpKind -> TcM TcType
+tcMetaTyVarForNwc name exp_kind =
+  do { (TcLclEnv {tcl_named_wildcards = nwc_map_ref}) <- getLclEnv
+     ; nwc_map <- readMutVar nwc_map_ref
+     ; case lookupNamedWildcard name nwc_map of -- TODOT check kind?
+       Just ty -> do checkExpectedKind ty (typeKind ty) exp_kind
+                     return ty
+       Nothing -> panic "tcMetaTyVarForNwc: unbound named wildcard"
+     }
 
 ---------------------------
 tupKindSort_maybe :: TcKind -> Maybe TupleSort
@@ -1147,12 +1163,7 @@ tcHsTyVarBndrs :: LHsTyVarBndrs Name
 tcHsTyVarBndrs (HsQTvs { hsq_kvs = kv_ns, hsq_tvs = hs_tvs }) thing_inside
   = do { kvs <- mapM mkKindSigVar kv_ns
        ; tcExtendTyVarEnv kvs $ do 
-       { namedWildcardsOn <- xoptM Opt_NamedWildcards
-       ; let isNamedWildcardName = startsWithUnderscore . occName
-             hs_tvs' = filter (\varBndr -> not $ isNamedWildcardName $ case unLoc varBndr of
-                                  UserTyVar name -> name
-                                  KindedTyVar name _ -> name) hs_tvs
-       ; tvs <- mapM tcHsTyVarBndr $ if namedWildcardsOn then hs_tvs' else hs_tvs
+       { tvs <- mapM tcHsTyVarBndr hs_tvs
        ; traceTc "tcHsTyVarBndrs {" (vcat [ text "Hs kind vars:" <+> ppr kv_ns
                                         , text "Hs type vars:" <+> ppr hs_tvs
                                         , text "Kind vars:" <+> ppr kvs
