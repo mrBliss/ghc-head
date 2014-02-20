@@ -524,9 +524,10 @@ tcExtendLocalTypeEnv tc_ty_things
 
     get_tvs (_, ATcId { tct_id = id, tct_closed = closed }) tvs
       = case closed of
-          TopLevel    -> ASSERT2( isEmptyVarSet (tyVarsOfType (idType id)), ppr id $$ ppr (idType id) )
+          TopLevel    -> ASSERT2( isEmptyVarSet id_tvs, ppr id $$ ppr (idType id) )
                          tvs
-          NotTopLevel -> tvs `unionVarSet` tyVarsOfType (idType id)
+          NotTopLevel -> tvs `unionVarSet` id_tvs
+        where id_tvs = filterVarSet (not . isWildcardVar) $ tyVarsOfType (idType id)
           -- TODOT replace @tyVarsOfType (idType id)@ with
           -- @filterVarSet (not . isWildcardVar) $ tyVarsOfType (idType id)@?
 
