@@ -674,7 +674,7 @@ mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
               wildcard_tvs = tyVarsOfType (idType poly_id)
               substitutedTyVarsAsTys = substTyVars subst tvs
               substitutedTyVars = map (tcGetTyVar "a type variable") substitutedTyVarsAsTys -- TODOT msg
-              poly_id_type = mkSigmaTy (varSetElems $ wildcard_tvs `unionVarSet` mkVarSet substitutedTyVars)
+              poly_id_type = mkSigmaTy (varSetElems $ wildcard_tvs `minusVarSet` mkVarSet substitutedTyVars)
                              (substTheta subst ann_theta) (substTy subst ann_tau)
                -- Only in case of a partial type signature
               poly_id' = if isJust mb_sig then setIdType poly_id poly_id_type else poly_id
