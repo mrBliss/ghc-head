@@ -622,11 +622,13 @@ mkSigTvFn :: [LSig Name] -> (Name -> [Name])
 mkSigTvFn sigs
   = \n -> lookupNameEnv env n `orElse` []
   where
-    -- TODOT: named wildcards?
+    extractScopedTyVars :: LHsType Name -> [Name]
+    extractScopedTyVars (L _ (HsForAllTy Explicit ltvs _ _)) = hsLKiTyVarNames ltvs 
+    extractScopedTyVars _ = []
+
     env :: NameEnv [Name]
-    env = mkNameEnv [ (name, hsLKiTyVarNames ltvs)  -- Kind variables and type variables
-		    | L _ (TypeSig names
-			           (L _ (HsForAllTy Explicit ltvs _ _)) _ _) <- sigs
+    env = mkNameEnv [ (name, extractScopedTyVars ty ++ nwcs)  -- Kind variables and type variables
+		    | L _ (TypeSig names ty _ nwcs) <- sigs
                     , (L _ name) <- names]
 	-- Note the pattern-match on "Explicit"; we only bind
 	-- type variables from signatures with an explicit top-level for-all
