@@ -1,0 +1,8 @@
+module SimpleGen where
+
+bar :: _ -> Bool
+bar _ = True
+
+
+test :: (Bool, Bool)
+test = (bar 'c', bar True)

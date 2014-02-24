@@ -1,0 +1,14 @@
+module Recursive where
+
+orr :: a -> a -> a
+orr = undefined
+
+g :: _
+g = f `orr` True
+
+f :: _
+f = g
+
+
+test :: (Bool, Bool)
+test = (g, f)
