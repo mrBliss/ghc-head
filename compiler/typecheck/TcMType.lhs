@@ -1029,7 +1029,7 @@ newWildcardTy name kind = do
     return (TyVarTy tc_tyvar)
 
 isWildcardVar :: TcTyVar -> Bool
-isWildcardVar tv | MetaTv (TauTv True) _ _ <- tcTyVarDetails tv = True
+isWildcardVar tv | isTcTyVar tv, MetaTv (TauTv True) _ _ <- tcTyVarDetails tv = True
 isWildcardVar _ = False
 
 isWildcardTy :: TcType -> Bool
