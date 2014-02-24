@@ -542,7 +542,7 @@ data Sig name
       -- @f :: Num a => a -> a@
       -- The Bool indicates the presence of an extra constraints
       -- wildcard, e.g. @f :: (Num a, _) => a -> a@
-      -- After renaming, the list of names contains the named 
+      -- After renaming, the list of names contains the named
       -- and unnamed wildcards brought in scope by this signature
     TypeSig [Located name] (LHsType name) Bool [name]
 
@@ -700,7 +700,7 @@ instance (OutputableBndr name) => Outputable (Sig name) where
     ppr sig = ppr_sig sig
 
 ppr_sig :: OutputableBndr name => Sig name -> SDoc
-ppr_sig (TypeSig vars ty extra _wcs)   = pprVarSig (map unLoc vars) (extraText <+> ppr ty)
+ppr_sig (TypeSig vars ty extra _wcs) = pprVarSig (map unLoc vars) (extraText <+> ppr ty)
   where extraText | extra = text "_ =>"  -- TODO print the extra ct wc
                   | True  = empty
 ppr_sig (GenericSig vars ty)      = ptext (sLit "default") <+> pprVarSig (map unLoc vars) (ppr ty)

@@ -91,7 +91,7 @@ v = let f :: _ -> _
 
 ------------------------------------------------------------------------------
 
--- In the following definition, generalisation occurs. The resulting type is: 
+-- In the following definition, generalisation occurs. The resulting type is:
 -- "forall a. a -> Bool".
 
 alwaysTrue :: _ -> _
