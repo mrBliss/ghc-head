@@ -290,14 +290,14 @@ rnHsTyKi isType doc ty@(HsExplicitTupleTy kis tys)
        ; return (HsExplicitTupleTy kis tys', fvs) }
 
 rnHsTyKi _ _ HsWildcardTy
-  = do traceRn (text "HsWildCardTy in rnHsTyKi!")
-       ASSERT( False ) undefined
-    -- unnamed wildcards should have been transformed into named wildcards with fresh names in renameSigs
+  = panic "HsWildCardTy in rnHsTyKi"
+  -- Unnamed wildcards should have been transformed into named
+  -- wildcards with fresh names in renameSigs.
 
 rnHsTyKi isType _ (HsNamedWildcardTy rdr_name)
   = do { name <- rnTyVar isType rdr_name -- TODOT what to do?
        ; return (HsNamedWildcardTy name, unitFV name) }
-    
+
 
 --------------
 rnTyVar :: Bool -> RdrName -> RnM Name

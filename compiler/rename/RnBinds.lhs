@@ -44,7 +44,7 @@ import Module
 import Name
 import NameEnv
 import NameSet
-import RdrName          ( RdrName( Exact ), rdrNameOcc, elemLocalRdrEnv )
+import RdrName          ( RdrName, rdrNameOcc, getRdrName, elemLocalRdrEnv )
 import SrcLoc
 import ListSetOps	( findDupsEq )
 import BasicTypes	( RecFlag(..), Origin )
@@ -742,48 +742,49 @@ renameSigs ctxt sigs
 	; return (good_sigs, sig_fvs) } 
 
 
--- return the wildcards used in a type and transform unnamed wildcards to
--- named wildcards with fresh names in the process
+-- Return the wildcards used in a type and transform unnamed wildcards
+-- to named wildcards with fresh names in the process.
 extractWildcards :: LHsType RdrName -> RnM ([RdrName], [Name], LHsType RdrName)
 extractWildcards (L loc ty) =
-  do (nwcs,awcs,ty') <- goNoLoc
+  do (nwcs, awcs, ty') <- goNoLoc
      return (nwcs, awcs, L loc ty')
   where
     goNoLoc = case ty of
-      (HsForAllTy exp bndrs (L locCxt cxt) ty) -> 
-        do (nwcs1, awcs1, ty') <- extractWildcards ty
+      (HsForAllTy exp bndrs (L locCxt cxt) ty) ->
+        do (nwcs1, awcs1, ty')  <- extractWildcards ty
            (nwcs2, awcs2, cxt') <- extList cxt
            return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, HsForAllTy exp bndrs (L locCxt cxt') ty')
-      (HsAppTy ty1 ty2) -> go2 HsAppTy ty1 ty2
-      (HsFunTy ty1 ty2) -> go2 HsFunTy ty1 ty2
-      (HsListTy ty) -> go1 HsListTy ty 
-      (HsPArrTy ty) -> go1 HsPArrTy ty
-      (HsTupleTy con tys) -> goList (HsTupleTy con) tys 
-      (HsOpTy ty1 op ty2) -> go2 (\t1 t2 -> HsOpTy t1 op t2) ty1 ty2
-      (HsParTy ty) -> go1 HsParTy ty
-      (HsIParamTy n ty) -> go1 (HsIParamTy n) ty
-      (HsEqTy ty1 ty2) -> go2 HsEqTy ty1 ty2
-      (HsKindSig ty kind) -> go2 HsKindSig ty kind
-      (HsDocTy ty doc) -> go1 (flip HsDocTy doc) ty
-      (HsBangTy b ty) -> go1 (HsBangTy b) ty
-      (HsExplicitListTy ptk tys) -> goList (HsExplicitListTy ptk) tys
+      (HsAppTy ty1 ty2)           -> go2 HsAppTy ty1 ty2
+      (HsFunTy ty1 ty2)           -> go2 HsFunTy ty1 ty2
+      (HsListTy ty)               -> go1 HsListTy ty
+      (HsPArrTy ty)               -> go1 HsPArrTy ty
+      (HsTupleTy con tys)         -> goList (HsTupleTy con) tys
+      (HsOpTy ty1 op ty2)         -> go2 (\t1 t2 -> HsOpTy t1 op t2) ty1 ty2
+      (HsParTy ty)                -> go1 HsParTy ty
+      (HsIParamTy n ty)           -> go1 (HsIParamTy n) ty
+      (HsEqTy ty1 ty2)            -> go2 HsEqTy ty1 ty2
+      (HsKindSig ty kind)         -> go2 HsKindSig ty kind
+      (HsDocTy ty doc)            -> go1 (flip HsDocTy doc) ty
+      (HsBangTy b ty)             -> go1 (HsBangTy b) ty
+      (HsExplicitListTy ptk tys)  -> goList (HsExplicitListTy ptk) tys
       (HsExplicitTupleTy ptk tys) -> goList (HsExplicitTupleTy ptk) tys
       HsWildcardTy -> do uniq <- newUnique
                          loc <- getSrcSpanM
                          let name = mkSystemNameAt uniq (mkTyVarOcc "_") loc
-                         return ([], [name], HsNamedWildcardTy (Exact name))
-      (HsNamedWildcardTy name) -> return ([name],[],ty)
-      _ ->
-        -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
-        return ([],[],ty)
+                         return ([], [name], HsNamedWildcardTy (getRdrName name))
+      (HsNamedWildcardTy name) -> return ([name], [], ty)
+      -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
+      _ -> return ([], [], ty)
+
     go1 f t = do { (nwcs, awcs, t') <- extractWildcards t; return (nwcs, awcs, f t') }
     go2 f t1 t2 =
-      do (nwcs1, awcs1, t1') <- extractWildcards t1;
-         (nwcs2, awcs2, t2') <- extractWildcards t2;
+      do (nwcs1, awcs1, t1') <- extractWildcards t1
+         (nwcs2, awcs2, t2') <- extractWildcards t2
          return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, f t1' t2')
     extList l = do rec_res <- mapM extractWildcards l
                    let (nwcs, awcs, tys') =
-                         foldr (\(nwcs,awcs,ty) (nwcss,awcss,tys) -> (nwcs ++ nwcss, awcs++awcss, ty:tys)) ([],[],[]) rec_res
+                         foldr (\(nwcs, awcs, ty) (nwcss, awcss, tys) -> (nwcs ++ nwcss, awcs ++ awcss, ty : tys))
+                               ([], [], []) rec_res
                    return (nwcs, awcs, tys')
     goList f l = do (nwcs, awcs, l') <- extList l
                     return (nwcs, awcs, f l')
@@ -813,12 +814,9 @@ renameSig ctxt sig@(TypeSig vs ty extra _)
         ; let nwcs' = nub $ filterOut (flip elemLocalRdrEnv rdr_env) nwcs
         ; loc <- getSrcSpanM
         ; bindLocalNames awcs $
-          bindLocatedLocalsFV (map (L loc) nwcs') $ \nwcs_new ->
-          do
-          { (new_ty, fvs) <- rnHsSigType (ppr_sig_bndrs vs) ty'
-          ; return (TypeSig new_vs new_ty extra (nwcs_new ++ awcs), fvs)
-          }
-        }
+          bindLocatedLocalsFV (map (L loc) nwcs') $ \nwcs_new -> do {
+          (new_ty, fvs) <- rnHsSigType (ppr_sig_bndrs vs) ty'
+        ; return (TypeSig new_vs new_ty extra (nwcs_new ++ awcs), fvs) } }
 
 renameSig ctxt sig@(GenericSig vs ty)
   = do	{ defaultSigs_on <- xoptM Opt_DefaultSignatures
@@ -922,7 +920,7 @@ findDupSigs sigs
   where
     expand_sig sig@(FixSig (FixitySig n _)) = [(n,sig)]
     expand_sig sig@(InlineSig n _)          = [(n,sig)]
-    expand_sig sig@(TypeSig  ns _ _ _)        = [(n,sig) | n <- ns]
+    expand_sig sig@(TypeSig  ns _ _ _)      = [(n,sig) | n <- ns]
     expand_sig sig@(GenericSig ns _)        = [(n,sig) | n <- ns]
     expand_sig _ = []
 

@@ -466,7 +466,7 @@ tcExtendIdEnv1 name id thing_inside
 tcExtendIdEnv2 :: [(Name,TcId)] -> TcM a -> TcM a
 -- Do *not* extend the tcl_bndrs stack
 -- The tct_closed flag really doesn't matter
--- Invariant: the TcIds are fully zonked (see tcExtendIdEnv ab ove)
+-- Invariant: the TcIds are fully zonked (see tcExtendIdEnv above)
 tcExtendIdEnv2 names_w_ids thing_inside
   = tcExtendIdEnv3 names_w_ids emptyVarSet thing_inside
 
@@ -499,9 +499,9 @@ tc_extend_local_env2 thlvl extra_env not_actually_free thing_inside
 --          in the types, because instantiation does not look through such things
 --      (c) The call to tyVarsOfTypes is ok without looking through refs
 
--- the second argument of type TyVarSet is a set of type variables that are
--- bound together with extra_env and should not be regarded as free in the types
--- of extra_env
+-- The second argument of type TyVarSet is a set of type variables
+-- that are bound together with extra_env and should not be regarded
+-- as free in the types of extra_env.
   = do  { traceTc "env2" (ppr extra_env)
         ; env1 <- tcExtendLocalTypeEnv extra_env not_actually_free
         ; let env2 = extend_local_env thlvl extra_env env1
