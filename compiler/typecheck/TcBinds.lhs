@@ -1085,7 +1085,8 @@ tcMonoBinds _ sig_fn no_gen binds
 
         -- Bring the monomorphic Ids, into scope for the RHSs
         ; let mono_info  = getMonoBindInfo (map snd tc_binds)
-              rhs_id_env = [(name,mono_id) | (name, Nothing, mono_id) <- mono_info]
+              rhs_id_env = [(name,mono_id) | (name, mb_sig, mono_id) <- mono_info
+                                           , noCompleteSig mb_sig ]
                     -- A monomorphic binding for each term variable that lacks 
                     -- a type sig.  (Ones with a sig are already in scope.)
 
