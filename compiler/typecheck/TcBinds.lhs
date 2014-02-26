@@ -397,7 +397,12 @@ tc_single top_lvl sig_fn prag_fn lbind thing_inside
                                     [lbind]
        ; thing <- tcExtendLetEnv top_lvl closed ids thing_inside
        ; return (binds1, thing) }
-          
+
+-- No signature or a partial signature
+noCompleteSig :: Maybe TcSigInfo -> Bool
+noCompleteSig Nothing    = True
+noCompleteSig (Just sig) = isPartialSig sig
+
 ------------------------
 mkEdges :: TcSigFun -> LHsBinds Name
         -> [((Origin, LHsBind Name), BKey, [BKey])]
@@ -412,9 +417,7 @@ mkEdges sig_fn binds
   where
     -- No signature or a partial signature
     no_sig :: Name -> Bool
-    no_sig n = isNothing (sig_fn n)
-               || containsWildcards (sig_tau (fromJust (sig_fn n)))
-               -- TODOT: || isJust (sig_extra sig)
+    no_sig n = noCompleteSig (sig_fn n)
 
     keyd_binds = bagToList binds `zip` [0::BKey ..]
 
@@ -1386,8 +1389,7 @@ decideGeneralisationPlan
    -> [(Origin, LHsBind Name)] -> TcSigFun -> GeneralisationPlan
 decideGeneralisationPlan dflags type_env bndr_names lbinds sig_fn
   | strict_pat_binds                                 = NoGen
-  | Just (lbind, sig) <- one_funbind_with_sig lbinds = if containsWildcards (sig_tau sig) ||
-                                                          isJust (sig_extra sig)
+  | Just (lbind, sig) <- one_funbind_with_sig lbinds = if isPartialSig sig
                                                        then WcGen lbind sig mono_restriction closed_flag
                                                        else CheckGen lbind sig
   | mono_local_binds                                 = NoGen

@@ -13,8 +13,8 @@ TcPat: Typechecking patterns
 --     http://ghc.haskell.org/trac/ghc/wiki/Commentary/CodingStyle#TabsvsSpaces
 -- for details
 
-module TcPat ( tcLetPat, TcSigFun, TcSigInfo(..), TcPragFun 
-             , LetBndrSpec(..), addInlinePrags, warnPrags
+module TcPat ( tcLetPat, TcSigFun, TcSigInfo(..), isPartialSig
+             , TcPragFun, LetBndrSpec(..), addInlinePrags, warnPrags
              , tcPat, tcPats, newNoSigLetBndr
 	     , addDataConStupidTheta, badFieldCon, polyPatSig ) where
 
@@ -50,6 +50,7 @@ import Util
 import Outputable
 import FastString
 import Control.Monad
+import Data.Maybe( isJust )
 \end{code}
 
 
@@ -166,6 +167,10 @@ instance Outputable TcSigInfo where
     ppr (TcSigInfo { sig_id = id, sig_tvs = tyvars, sig_theta = theta, sig_tau = tau})
         = ppr id <+> dcolon <+> vcat [ pprSigmaType (mkSigmaTy (map snd tyvars) theta tau)
                                      , ppr (map fst tyvars) ]
+
+isPartialSig :: TcSigInfo -> Bool
+isPartialSig (TcSigInfo { sig_theta = theta, sig_extra = extra, sig_tau = tau})
+  = any containsWildcards theta || isJust extra || containsWildcards tau
 \end{code}
 
 Note [Kind vars in sig_tvs]
