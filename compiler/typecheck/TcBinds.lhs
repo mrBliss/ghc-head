@@ -653,28 +653,33 @@ mkExport :: PragFun
 mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
   = do  { mono_ty <- zonkTcType (idType mono_id)
         ; gbl_tvs <- tcGetGlobalTyVars
+        ; let wildcard_tvs = case mb_sig of Just sig -> tyVarsOfType (idType (sig_id sig)) `minusVarSet` gbl_tvs
+                                            Nothing -> emptyVarSet
+        ; wildcard_tvs <- tyVarsOfTypes <$> mapM zonkTcTyVar (varSetElems wildcard_tvs)
+        ; let poly_id  = case mb_sig of
+                           Nothing  -> mkLocalId poly_name inferred_poly_ty
+                           Just sig -> sig_id sig
+              init_tvs = tyVarsOfType mono_ty `unionVarSet` wildcard_tvs
               -- In the inference case (no signature) this stuff figures out
               -- the right type variables and theta to quantify over
               -- See Note [Impedence matching]
-        ; let wildcard_tvs = case mb_sig of Just sig -> tyVarsOfType (idType (sig_id sig)) `minusVarSet` gbl_tvs
-                                            Nothing -> emptyVarSet
-        ; wildcard_tvs' <- tyVarsOfTypes <$> mapM zonkTcTyVar (varSetElems wildcard_tvs)
-        ; let init_tvs = tyVarsOfType mono_ty `unionVarSet` wildcard_tvs'
               my_tvs2 = closeOverKinds (growThetaTyVars theta init_tvs)
                             -- Include kind variables!  Trac #7916
               -- don't quantify over wildcard variables from the global scope...
-              my_tvs = filter (`elemVarSet` my_tvs2) qtvs   -- Maintain original order
+              my_tvs   = filter (`elemVarSet` my_tvs2) qtvs   -- Maintain original order
+              -- my_theta = filter (quantifyPred my_tvs2) theta TODOT
               my_theta = filter (quantifyPred (mkVarSet my_tvs)) theta
               inferred_poly_ty = mkSigmaTy my_tvs my_theta mono_ty
-              -- Always use the inferred type. In case of a partial type signature, it may contain additional
-              -- quantifications. In case of a non-partial type signature, it's supposed to be equal to the
-              -- annotated type anyway.
-              poly_id = mkLocalId poly_name inferred_poly_ty
 
+        ; let (tvs, ann_theta, ann_tau) = tcSplitSigmaTy (idType poly_id)
+              poly_id_type = mkSigmaTy (varSetElems wildcard_tvs)
+                               (substTheta subst ann_theta) (substTy subst ann_tau)
+               -- Only in case of a partial type signature
+              poly_id' = if isJust mb_sig then setIdType poly_id poly_id_type else poly_id
 
-        -- poly_id has to be zonked in case of a partial type signature
-        ; poly_id <- zonkId poly_id
-        ; poly_id' <- addInlinePrags poly_id prag_sigs
+        -- poly_id' has to be zonked in case of a partial type signature
+        ; poly_id' <- zonkId poly_id'
+        ; poly_id' <- addInlinePrags poly_id' prag_sigs
         ; spec_prags <- tcSpecPrags poly_id' prag_sigs
                 -- tcPrags requires a zonked poly_id'
 
