@@ -342,18 +342,19 @@ rnForAll doc exp kvs forall_tyvars ctxt ty
         -- so that we can later print it correctly
 
 ---------------
-bindSigTyVarsFV :: [Name]
+bindSigTyVarsFV :: ([Name],[Name])
                 -> RnM (a, FreeVars)
                 -> RnM (a, FreeVars)
 -- Used just before renaming the defn of a function
 -- with a separate type signature, to bring its tyvars into scope
 -- With no -XScopedTypeVariables, this is a no-op
-bindSigTyVarsFV tvs thing_inside
+bindSigTyVarsFV (tvs_always, tvs_ext) thing_inside
   = do  { scoped_tyvars <- xoptM Opt_ScopedTypeVariables
-        ; if not scoped_tyvars then
+        ; bindLocalNamesFV tvs_always $
+          if not scoped_tyvars then
                 thing_inside
           else
-                bindLocalNamesFV tvs thing_inside }
+                bindLocalNamesFV tvs_ext thing_inside }
 
 ---------------
 bindHsTyVars :: HsDocContext
