@@ -535,7 +535,6 @@ data Token
   | ITbang
   | ITstar
   | ITdot
-  | ITdotdotdot
 
   | ITbiglam                    -- GHC-extension symbols
 
