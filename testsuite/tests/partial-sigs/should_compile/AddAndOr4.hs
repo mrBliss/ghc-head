@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module AddAndOr4 where
 
 addAndOr4 :: (_ _ _) -> (_ _ _) -> (_ _ _)

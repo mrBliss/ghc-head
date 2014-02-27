@@ -784,47 +784,66 @@ isWildcardTy :: HsType a -> Bool
 isWildcardTy HsWildcardTy = True
 isWildcardTy _ = False
 
-checkPartialTypeSignature :: LHsType RdrName -> P (LHsType RdrName, Bool)
-checkPartialTypeSignature fullTy@(L l (HsForAllTy flag bndrs (L lc ctxt) ty)) = do
-  checkNoExtraConstraintsWildcard ty
-  let (rest, extra) = case () of
-        _ | null ctxt -> ([], False)
-        _ | isWildcardTy $ unLoc (last ctxt) -> (init ctxt, True)
-        _ | otherwise -> (ctxt, False)
-  if any (isWildcardTy . unLoc) rest
-    then parseErrorSDoc lc ((text "Invalid partial type signature:" <+> ppr fullTy)
-                           $$ text hint)
-    else return (L l (HsForAllTy flag bndrs (L lc rest) ty), extra)
-  where hint = "An extra constraint wildcard is only allowed at the end of the constraints"
-checkPartialTypeSignature ty = do
-  checkNoExtraConstraintsWildcard ty
-  return (ty, False)
+isNamedWildcardTy :: HsType a -> Bool
+isNamedWildcardTy (HsNamedWildcardTy _) = True
+isNamedWildcardTy _ = False
 
-checkNoExtraConstraintsWildcard :: LHsType RdrName -> P ()
-checkNoExtraConstraintsWildcard fullTy@(L _ (HsForAllTy _ _ (L lc ctxt) ty))
-  | any (isWildcardTy . unLoc) ctxt = parseErrorSDoc lc ((text "Invalid partial type signature:"
-                                                          <+> ppr fullTy) $$ text hint)
-  | otherwise = checkNoExtraConstraintsWildcard ty
-  where hint = "An extra constraint wildcard is only allowed at the top-level of the signature"
-checkNoExtraConstraintsWildcard ty = go' ty
-  where go' = go . unLoc
-        go (HsAppTy x y)            = go' x >> go' y
-        go (HsFunTy x y)            = go' x >> go' y
-        go (HsListTy x)             = go' x
-        go (HsPArrTy x)             = go' x
-        go (HsTupleTy _ xs)         = mapM_ go' xs
-        go (HsOpTy x _ y)           = go' x >> go' y
-        go (HsParTy x)              = go' x
-        go (HsIParamTy _ x)         = go' x
-        go (HsEqTy x y)             = go' x >> go' y
-        go (HsKindSig x y)          = go' x >> go' y
-        go (HsDocTy x _)            = go' x
-        go (HsBangTy _ x)           = go' x
-        go (HsRecTy xs)             = mapM_ (go' . getBangType . cd_fld_type) xs
-        go (HsExplicitListTy _ xs)  = mapM_ go' xs
-        go (HsExplicitTupleTy _ xs) = mapM_ go' xs
-        go (HsWrapTy _ x)           = go' (noLoc x)
-        go _                        = return ()
+checkPartialTypeSignature :: LHsType RdrName -> P (LHsType RdrName, Bool)
+checkPartialTypeSignature fullTy = case fullTy of
+
+  (L l (HsForAllTy flag bndrs (L lc ctxt) ty)) -> do
+    -- Check that the type doesn't contain any more extra-constraints wildcards
+    checkNoExtraConstraintsWildcard ty
+    -- Named constraint wildcards aren't allowed
+    when (any (isNamedWildcardTy . unLoc) ctxt) $ err hintNamed lc fullTy
+    -- If there's an extra-constraints wildcard, remove it from the
+    -- context and let extra be True
+    let (rest, extra) = case () of
+          _ | null ctxt -> ([], False)
+          _ | isWildcardTy $ unLoc (last ctxt) -> (init ctxt, True)
+          _ | otherwise -> (ctxt, False)
+    -- After removing the extra-constraints wildcard at the end of the
+    -- list, there should be no more left
+    if any (isWildcardTy . unLoc) rest
+      then err hintLast lc fullTy
+      else return (L l (HsForAllTy flag bndrs (L lc rest) ty), extra)
+
+  ty -> do
+    checkNoExtraConstraintsWildcard ty
+    return (ty, False)
+
+  where
+    err hint lc ty = parseErrorSDoc lc ((text "Invalid partial type signature:" <+> ppr ty)
+                                     $$ text hint)
+    hintLast    = "An extra-constraints wildcard is only allowed at the end of the constraints"
+    hintNamed   = "A named wildcard cannot occur as a constraint"
+    hintNested  = "An extra-constraints wildcard is only allowed at the top-level of the signature"
+
+    checkNoExtraConstraintsWildcard ty = go' ty
+
+    -- Report nested (named) extra-constraints wildcards
+    go' = go . unLoc
+    go (HsAppTy x y)            = go' x >> go' y
+    go (HsFunTy x y)            = go' x >> go' y
+    go (HsListTy x)             = go' x
+    go (HsPArrTy x)             = go' x
+    go (HsTupleTy _ xs)         = mapM_ go' xs
+    go (HsOpTy x _ y)           = go' x >> go' y
+    go (HsParTy x)              = go' x
+    go (HsIParamTy _ x)         = go' x
+    go (HsEqTy x y)             = go' x >> go' y
+    go (HsKindSig x y)          = go' x >> go' y
+    go (HsDocTy x _)            = go' x
+    go (HsBangTy _ x)           = go' x
+    go (HsRecTy xs)             = mapM_ (go' . getBangType . cd_fld_type) xs
+    go (HsExplicitListTy _ xs)  = mapM_ go' xs
+    go (HsExplicitTupleTy _ xs) = mapM_ go' xs
+    go (HsWrapTy _ x)           = go' (noLoc x)
+    go ty@(HsForAllTy _ _ (L lc ctxt) x)
+      | any (isWildcardTy . unLoc) ctxt = err hintNested lc ty
+      | any (isNamedWildcardTy . unLoc) ctxt = err hintNamed lc ty
+      | otherwise               = go' x
+    go _                        = return ()
 
 checkDoAndIfThenElse :: LHsExpr RdrName
                      -> Bool

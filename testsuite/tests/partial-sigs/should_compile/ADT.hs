@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module ADT where
 
 data Foo x y z = Foo x y z

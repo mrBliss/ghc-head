@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module NamedWildcardsEnabled where
 
 foo :: Eq a => a -> (a, _)

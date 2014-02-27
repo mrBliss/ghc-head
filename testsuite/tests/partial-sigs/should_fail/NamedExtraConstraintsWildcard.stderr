@@ -1,0 +1,4 @@
+
+NamedExtraConstraintsWildcard.hs:4:8:
+    Invalid partial type signature: (Eq a, _a) => a -> a
+    A named wildcard cannot occur as a constraint

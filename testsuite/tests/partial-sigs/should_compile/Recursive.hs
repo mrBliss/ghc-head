@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module Recursive where
 
 orr :: a -> a -> a

@@ -1,0 +1,4 @@
+
+NestedExtraConstraintsWildcard.hs:4:16:
+    Invalid partial type signature: (Eq a, _) => a
+    An extra-constraints wildcard is only allowed at the top-level of the signature
