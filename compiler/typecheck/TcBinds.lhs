@@ -653,9 +653,10 @@ mkExport :: PragFun
 mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
   = do  { mono_ty <- zonkTcType (idType mono_id)
         ; gbl_tvs <- tcGetGlobalTyVars
-        ; let wildcard_tvs = case mb_sig of Just sig -> tyVarsOfType (idType (sig_id sig)) `minusVarSet` gbl_tvs
-                                            Nothing -> emptyVarSet
-        ; wildcard_tvs <- tyVarsOfTypes <$> mapM zonkTcTyVar (varSetElems wildcard_tvs)
+        ; let wildcard_tvs'' = case mb_sig of Just sig -> tyVarsOfType (idType (sig_id sig)) `minusVarSet` gbl_tvs
+                                              Nothing -> emptyVarSet
+        ; wildcard_tvs' <- tyVarsOfTypes <$> mapM zonkTcTyVar (varSetElems wildcard_tvs'')
+        ; let wildcard_tvs = wildcard_tvs' `minusVarSet` gbl_tvs 
         ; let poly_id  = case mb_sig of
                            Nothing  -> mkLocalId poly_name inferred_poly_ty
                            Just sig -> sig_id sig
@@ -667,11 +668,10 @@ mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
                             -- Include kind variables!  Trac #7916
               -- don't quantify over wildcard variables from the global scope...
               my_tvs   = filter (`elemVarSet` my_tvs2) qtvs   -- Maintain original order
-              -- my_theta = filter (quantifyPred my_tvs2) theta TODOT
               my_theta = filter (quantifyPred (mkVarSet my_tvs)) theta
               inferred_poly_ty = mkSigmaTy my_tvs my_theta mono_ty
 
-        ; let (tvs, ann_theta, ann_tau) = tcSplitSigmaTy (idType poly_id)
+        ; let (_tvs, ann_theta, ann_tau) = tcSplitSigmaTy (idType poly_id)
               poly_id_type = mkSigmaTy (varSetElems wildcard_tvs)
                                (substTheta subst ann_theta) (substTy subst ann_tau)
                -- Only in case of a partial type signature

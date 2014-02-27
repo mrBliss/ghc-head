@@ -274,7 +274,7 @@ rnExpr (RecordUpd expr rbinds _ _ _)
 
 rnExpr (ExprWithTySig expr pty)
   = do  { (pty', fvTy) <- rnLHsType ExprWithTySigCtx pty
-        ; (expr', fvExpr) <- bindSigTyVarsFV (hsExplicitTvs pty') $
+        ; (expr', fvExpr) <- bindSigTyVarsFV ([],hsExplicitTvs pty') $
                              rnLExpr expr
         ; return (ExprWithTySig expr' pty', fvExpr `plusFV` fvTy) }
 
