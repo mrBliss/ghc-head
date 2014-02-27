@@ -6,4 +6,4 @@ test('NamedWildcardsDisabled', normal, compile_fail, [''])
 test('NamedWildcardsNotEnabled', normal, compile_fail, [''])
 test('NestedExtraConstraintsWildcard', normal, compile_fail, [''])
 test('PartialTypeSignaturesEnabled', normal, compile_fail, [''])
-
+test('ScopedNamedWildcards', normal, compile_fail, [''])
