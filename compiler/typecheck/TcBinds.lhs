@@ -1334,7 +1334,7 @@ instTcTySigFromId loc id
         n = tyVarName tv
 
 instTcTySig :: LHsType Name -> TcType    -- HsType and corresponding TcType
-            -> Bool                      -- Extra constraints wildcard present
+            -> Bool                      -- Extra-constraints wildcard present
             -> Name -> TcM (TcSigInfo, TvSubst)
 instTcTySig hs_ty@(L loc _) sigma_ty extra name
   = do { (inst_tvs, theta, tau, subst) <- tcInstType tcInstSigTyVars sigma_ty
