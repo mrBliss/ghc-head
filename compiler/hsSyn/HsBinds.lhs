@@ -540,7 +540,7 @@ type LSig name = Located (Sig name)
 data Sig name   
   =   -- | An ordinary type signature
       -- @f :: Num a => a -> a@
-      -- The Bool indicates the presence of an extra constraints
+      -- The Bool indicates the presence of an extra-constraints
       -- wildcard, e.g. @f :: (Num a, _) => a -> a@
       -- After renaming, the list of names contains the named
       -- and unnamed wildcards brought in scope by this signature
