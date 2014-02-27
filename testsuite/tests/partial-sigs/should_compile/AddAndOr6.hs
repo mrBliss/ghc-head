@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module AddAndOr6 where
 
 addAndOr6 :: (Int, _) -> (Bool, _) -> (_ Int Bool)

@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module BoolToBool where
 
 bar :: _ -> _

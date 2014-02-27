@@ -1164,7 +1164,8 @@ atype :: { LHsType RdrName }
         | '[' ctype ',' comma_types1 ']'              { LL $ HsExplicitListTy placeHolderKind ($2 : $4) }
         | INTEGER            {% mkTyLit $ LL $ HsNumTy $ getINTEGER $1 }
         | STRING             {% mkTyLit $ LL $ HsStrTy $ getSTRING  $1 }
-        | '_'                { L1 $! HsWildcardTy }
+        | '_'                {% hintPartialTypeSignatures (getLoc $1) >> return (L1 $ HsWildcardTy) }
+
 
 
 -- An inst_type is what occurs in the head of an instance decl
@@ -2316,6 +2317,12 @@ hintExplicitForall span = do
       , text "Perhaps you intended to use RankNTypes or a similar language"
       , text "extension to enable explicit-forall syntax: \x2200 <tvs>. <type>"
       ]
+
+hintPartialTypeSignatures :: SrcSpan -> P ()
+hintPartialTypeSignatures span = do
+  ptsEnabled <- liftM ((Opt_PartialTypeSignatures `xopt`) . dflags) getPState
+  unless ptsEnabled $ parseErrorSDoc span $
+    text "Wildcards in type signatures need PartialTypeSignatures turned on"
 
 namedWildcardsEnabled :: P Bool
 namedWildcardsEnabled = liftM ((Opt_NamedWildcards `xopt`) . dflags) getPState

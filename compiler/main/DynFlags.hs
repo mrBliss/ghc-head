@@ -584,6 +584,7 @@ data ExtensionFlag
    | Opt_NegativeLiterals
    | Opt_EmptyCase
    | Opt_PatternSynonyms
+   | Opt_PartialTypeSignatures
    | Opt_NamedWildcards
    deriving (Eq, Enum, Show)
 
@@ -2838,8 +2839,6 @@ xFlags = [
   ( "ImplicitParams",                   Opt_ImplicitParams, nop ),
   ( "ScopedTypeVariables",              Opt_ScopedTypeVariables, nop ),
   ( "AllowAmbiguousTypes",              Opt_AllowAmbiguousTypes, nop),
-  ( "NamedWildcards",                   Opt_NamedWildcards, nop ),
-
   ( "PatternSignatures",                Opt_ScopedTypeVariables,
     deprecatedForExtension "ScopedTypeVariables" ),
 
@@ -2866,7 +2865,9 @@ xFlags = [
   ( "PackageImports",                   Opt_PackageImports, nop ),
   ( "NegativeLiterals",                 Opt_NegativeLiterals, nop ),
   ( "EmptyCase",                        Opt_EmptyCase, nop ),
-  ( "PatternSynonyms",                  Opt_PatternSynonyms, nop )
+  ( "PatternSynonyms",                  Opt_PatternSynonyms, nop ),
+  ( "PartialTypeSignatures",            Opt_PartialTypeSignatures, nop ),
+  ( "NamedWildcards",                   Opt_NamedWildcards, nop )
   ]
 
 defaultFlags :: Settings -> [GeneralFlag]
@@ -2948,6 +2949,13 @@ impliedFlags
     , (Opt_ImplicitParams, turnOn, Opt_FlexibleInstances)
 
     , (Opt_JavaScriptFFI, turnOn, Opt_InterruptibleFFI)
+
+    -- Turning on partial type signatures ('_') also enables named
+    -- wildcards ('_a'). Named wildcards can still be turned off, as
+    -- they change existing behaviour (they were previously parsed as
+    -- type variables) whereas unnamed wildcards are wholly new
+    -- behaviour (they couldn't be parsed before).
+    , (Opt_PartialTypeSignatures, turnOn, Opt_NamedWildcards)
   ]
 
 optLevelFlags :: [([Int], GeneralFlag)]

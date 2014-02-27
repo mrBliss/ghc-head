@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module Every where
 
 every :: _ -> _ -> Bool
