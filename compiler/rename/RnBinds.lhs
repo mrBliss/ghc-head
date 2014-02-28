@@ -778,10 +778,6 @@ extractWildcards (L loc ty) =
                          loc <- getSrcSpanM
                          let name = mkSystemNameAt uniq (mkTyVarOcc "_") loc
                          return ([], [name], HsTyVar (nameRdrName name))
-      (HsTyVar name) -> do nwc <- xoptM Opt_NamedWildcards
-                           if (startsWithUnderscore (occName name) && nwc)
-                             then return ([name], [], ty)
-                             else return ([],[],ty)
       (HsNamedWildcardTy name) -> return ([name], [], HsTyVar name)
       -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
       _ -> return ([], [], ty)
