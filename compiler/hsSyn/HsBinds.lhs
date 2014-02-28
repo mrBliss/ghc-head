@@ -700,9 +700,14 @@ instance (OutputableBndr name) => Outputable (Sig name) where
     ppr sig = ppr_sig sig
 
 ppr_sig :: OutputableBndr name => Sig name -> SDoc
-ppr_sig (TypeSig vars ty extra _wcs) = pprVarSig (map unLoc vars) (extraText <+> ppr ty)
-  where extraText | extra = text "_ =>"  -- TODO print the extra ct wc
-                  | True  = empty
+ppr_sig (TypeSig vars ty extra _wcs) = pprVarSig (map unLoc vars) $ ppr (reintroExtraCtsWc ty)
+  where -- Temporarily add back the extra-constraints wildcard (if
+        -- extra is True) to the type, just for pretty-printing
+    reintroExtraCtsWc (L l (HsForAllTy f b ctxt t))
+      | extra = (L l (HsForAllTy f b (fmap (++ [L l HsWildcardTy]) ctxt) t))
+    reintroExtraCtsWc t = t
+    reintroExtraCtsWc :: OutputableBndr name => LHsType name -> LHsType name
+
 ppr_sig (GenericSig vars ty)      = ptext (sLit "default") <+> pprVarSig (map unLoc vars) (ppr ty)
 ppr_sig (IdSig id)                = pprVarSig [id] (ppr (varType id))
 ppr_sig (FixSig fix_sig)          = ppr fix_sig
