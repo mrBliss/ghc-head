@@ -971,7 +971,7 @@ extract_lty (L _ ty) acc
                                    extract_lctxt cx   $
                                    extract_lty ty ([],[])
       HsWildcardTy              -> acc
-      HsNamedWildcardTy _       -> acc
+      HsNamedWildcardTy tv      -> extract_tv tv acc
 
 extract_hs_tv_bndrs :: LHsTyVarBndrs RdrName -> FreeKiTyVars
                     -> FreeKiTyVars -> FreeKiTyVars
