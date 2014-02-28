@@ -128,12 +128,53 @@ mkClassDecl loc (L _ (mcxt, tycl_hdr)) fds where_cls
   = do { let (binds, sigs, ats, at_defs, _, docs) = cvBindsAndSigs (unLoc where_cls)
              cxt = fromMaybe (noLoc []) mcxt
        ; (cls, tparams) <- checkTyClHdr tycl_hdr
+       -- Partial type signatures are now allowed in a class definition
+       ; checkNoPartialSigs sigs cls
        ; tyvars <- checkTyVars (ptext (sLit "class")) whereDots
                                cls tparams      -- Only type vars allowed
        ; return (L loc (ClassDecl { tcdCtxt = cxt, tcdLName = cls, tcdTyVars = tyvars,
                                     tcdFDs = unLoc fds, tcdSigs = sigs, tcdMeths = binds,
                                     tcdATs = ats, tcdATDefs = at_defs, tcdDocs  = docs,
                                     tcdFVs = placeHolderNames })) }
+
+checkNoPartialSigs :: [LSig RdrName] -> Located RdrName -> P ()
+checkNoPartialSigs sigs cls_name =
+  sequence_ [ parseErrorSDoc l $ err sig
+            | L l sig@(TypeSig _ ty extra _) <- sigs
+            , extra || containsWildcard ty ]
+  where err sig =
+          vcat [ptext (sLit "The type signature of a class method cannot be partial:"),
+                quotes (ppr sig),
+                (ptext (sLit "In the class declaration for ")) <> quotes (ppr cls_name)]
+
+
+containsWildcard :: LHsType RdrName -> Bool
+containsWildcard = go'
+  where
+    go' = go . unLoc
+    go (HsForAllTy _ _ (L _ ctxt) x) = any go' ctxt || go' x
+    go (HsAppTy x y)            = go' x || go' y
+    go (HsFunTy x y)            = go' x || go' y
+    go (HsListTy x)             = go' x
+    go (HsPArrTy x)             = go' x
+    go (HsTupleTy _ xs)         = any go' xs
+    go (HsOpTy x _ y)           = go' x || go' y
+    go (HsParTy x)              = go' x
+    go (HsIParamTy _ x)         = go' x
+    go (HsEqTy x y)             = go' x || go' y
+    go (HsKindSig x y)          = go' x || go' y
+    go (HsDocTy x _)            = go' x
+    go (HsBangTy _ x)           = go' x
+    go (HsRecTy xs)             = any (go' . getBangType . cd_fld_type) xs
+    go (HsExplicitListTy _ xs)  = any go' xs
+    go (HsExplicitTupleTy _ xs) = any go' xs
+    go (HsWrapTy _ x)           = go x
+    go HsWildcardTy             = True
+    go (HsNamedWildcardTy _)    = True
+    -- HsTyVar, HsQuasiQuoteTy, HsSpliceTy, HsCoreTy, HsTyLit
+    go _                        = False
+
+
 
 mkTyData :: SrcSpan
          -> NewOrData
