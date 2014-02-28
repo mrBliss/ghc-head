@@ -247,6 +247,10 @@ mkTyFamInstEqn :: LHsType RdrName
                -> P (TyFamInstEqn RdrName)
 mkTyFamInstEqn lhs rhs
   = do { (tc, tparams) <- checkTyClHdr lhs
+       ; let err xhs = ptext (sLit "In type family instance equation of") <+>
+                       quotes (ppr tc) <> colon $$ ppr xhs
+       ; checkNoPartialType (err lhs) lhs
+       ; checkNoPartialType (err rhs) rhs
        ; return (TyFamInstEqn { tfie_tycon = tc
                               , tfie_pats  = mkHsWithBndrs tparams
                               , tfie_rhs   = rhs }) }
