@@ -147,6 +147,22 @@ checkNoPartialSigs sigs cls_name =
                 quotes (ppr sig),
                 (ptext (sLit "In the class declaration for ")) <> quotes (ppr cls_name)]
 
+checkNoPartialCon :: [LConDecl RdrName] -> P ()
+checkNoPartialCon con_decls =
+  sequence_ [ parseErrorSDoc l $ err con_decl
+            | L l con_decl@(ConDecl { con_cxt = cxt, con_res = res, con_details = details }) <- con_decls
+            , any containsWildcard (unLoc cxt)
+            || containsWildcardRes res
+            || any containsWildcard (hsConDeclArgTys details) ]
+  where err con_decl = ptext (sLit "A constructor cannot have a partial type:") $$
+                       quotes (ppr con_decl)
+        containsWildcardRes (ResTyGADT ty) = containsWildcard ty
+        containsWildcardRes ResTyH98 = False
+
+checkNoPartialType :: SDoc -> LHsType RdrName -> P ()
+checkNoPartialType context_msg ty@(L l _) = when (containsWildcard ty) $
+                                        parseErrorSDoc l err
+  where err = ptext (sLit "Wildcard not allowed") $$ context_msg -- TODOT message
 
 containsWildcard :: LHsType RdrName -> Bool
 containsWildcard = go'
@@ -201,12 +217,19 @@ mkDataDefn :: NewOrData
            -> P (HsDataDefn RdrName)
 mkDataDefn new_or_data cType mcxt ksig data_cons maybe_deriv
   = do { checkDatatypeContext mcxt
+       ; checkNoPartialCon data_cons
+       ; case maybe_deriv of
+           Just deriv -> mapM_ (checkNoPartialType (errDeriv deriv)) deriv
+           Nothing     -> return ()
        ; let cxt = fromMaybe (noLoc []) mcxt
        ; return (HsDataDefn { dd_ND = new_or_data, dd_cType = cType
                             , dd_ctxt = cxt 
                             , dd_cons = data_cons
                             , dd_kindSig = ksig
                             , dd_derivs = maybe_deriv }) }
+    where errDeriv deriv = ptext (sLit "In the deriving items:") <+>
+                           pprHsContextNoArrow deriv
+
 
 mkTySynonym :: SrcSpan
             -> LHsType RdrName  -- LHS
@@ -215,6 +238,9 @@ mkTySynonym :: SrcSpan
 mkTySynonym loc lhs rhs
   = do { (tc, tparams) <- checkTyClHdr lhs
        ; tyvars <- checkTyVars (ptext (sLit "type")) equalsDots tc tparams
+       ; let err = ptext (sLit "In type synonym") <+> quotes (ppr tc) <>
+                   colon <+> quotes (ppr rhs)
+       ; checkNoPartialType err rhs
        ; return (L loc (SynDecl { tcdLName = tc, tcdTyVars = tyvars
                                 , tcdRhs = rhs, tcdFVs = placeHolderNames })) }
 
@@ -575,6 +601,8 @@ checkDatatypeContext (Just (L loc c))
              parseErrorSDoc loc
                  (text "Illegal datatype context (use DatatypeContexts):" <+>
                   pprHsContext c)
+         mapM_ (checkNoPartialType err) c
+      where err = ptext (sLit "In the context:") <+> pprHsContextNoArrow c
 
 checkRecordSyntax :: Outputable a => Located a -> P (Located a)
 checkRecordSyntax lr@(L loc r)
