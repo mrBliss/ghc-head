@@ -1,0 +1,4 @@
+
+WildcardInGADT2.hs:5:3:
+    A constructor cannot have a partial type:
+    ‛Foo :: (Eq a, _) => Maybe a -> Foo a’

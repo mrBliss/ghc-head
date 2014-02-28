@@ -1,0 +1,4 @@
+
+WildcardInTypeSynonymRHS.hs:4:12:
+    Wildcard not allowed
+    In type synonym ‛Foo’: ‛Maybe _’
