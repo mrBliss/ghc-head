@@ -189,8 +189,8 @@ instance Outputable TcSigInfo where
                                      , ppr (map fst tyvars) ]
 
 isPartialSig :: TcSigInfo -> Bool
-isPartialSig (TcSigInfo { sig_theta = theta, sig_extra = extra, sig_tau = tau})
-  = any containsWildcards theta || isJust extra || containsWildcards tau
+isPartialSig (TcSigInfo { sig_theta = theta, sig_extra = extra, sig_tau = tau, sig_tvs = sig_tvs })
+  = any containsWildcards theta || any (isWildcardVar . snd) sig_tvs || isJust extra || containsWildcards tau
 \end{code}
 
 Note [Binding scoped type variables]

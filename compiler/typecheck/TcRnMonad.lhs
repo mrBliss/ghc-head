@@ -97,7 +97,6 @@ initTc hsc_env hsc_src keep_rn_syntax mod do_this
                            Nothing             -> newIORef emptyNameEnv } ;
 
         dependent_files_var <- newIORef [] ;
-        named_wc_map        <- newIORef emptyNamedWildcardMap ;
 #ifdef GHCI
         th_topdecls_var      <- newIORef [] ;
         th_topnames_var      <- newIORef emptyNameSet ;
@@ -175,7 +174,6 @@ initTc hsc_env hsc_src keep_rn_syntax mod do_this
                 tcl_tyvars          = tvs_var,
                 tcl_lie             = lie_var,
                 tcl_untch           = noUntouchables,
-                tcl_named_wildcards = named_wc_map,
                 tcl_tv_substs       = []
              } ;
         } ;

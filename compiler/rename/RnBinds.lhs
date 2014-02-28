@@ -44,7 +44,7 @@ import Module
 import Name
 import NameEnv
 import NameSet
-import RdrName          ( RdrName, rdrNameOcc, getRdrName, elemLocalRdrEnv )
+import RdrName          ( RdrName, rdrNameOcc, nameRdrName, elemLocalRdrEnv )
 import SrcLoc
 import ListSetOps	( findDupsEq )
 import BasicTypes	( RecFlag(..) )
@@ -777,8 +777,12 @@ extractWildcards (L loc ty) =
       HsWildcardTy -> do uniq <- newUnique
                          loc <- getSrcSpanM
                          let name = mkSystemNameAt uniq (mkTyVarOcc "_") loc
-                         return ([], [name], HsNamedWildcardTy (getRdrName name))
-      (HsNamedWildcardTy name) -> return ([name], [], ty)
+                         return ([], [name], HsTyVar (nameRdrName name))
+      (HsTyVar name) -> do nwc <- xoptM Opt_NamedWildcards
+                           if (startsWithUnderscore (occName name) && nwc)
+                             then return ([name], [], ty)
+                             else return ([],[],ty)
+      (HsNamedWildcardTy name) -> return ([name], [], HsTyVar name)
       -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
       _ -> return ([], [], ty)
 
@@ -819,7 +823,7 @@ renameSig ctxt sig@(TypeSig vs ty extra _)
         ; rdr_env <- getLocalRdrEnv
         ; let nwcs' = nub $ filterOut (flip elemLocalRdrEnv rdr_env) nwcs
         ; loc <- getSrcSpanM
-        ; bindLocalNames awcs $
+        ; bindLocalNamesFV awcs $
           bindLocatedLocalsFV (map (L loc) nwcs') $ \nwcs_new -> do {
           (new_ty, fvs) <- rnHsSigType (ppr_sig_bndrs vs) ty'
         ; return (TypeSig new_vs new_ty extra (nwcs_new ++ awcs), fvs) } }

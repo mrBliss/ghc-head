@@ -353,14 +353,16 @@ extendLocalRdrEnvList (env, ns) names
 
 lookupLocalRdrEnv :: LocalRdrEnv -> RdrName -> Maybe Name
 lookupLocalRdrEnv (env, _) (Unqual occ) = lookupOccEnv env occ
+lookupLocalRdrEnv (_, ns)  (Exact name) | name `elemNameSet` ns = Just name
 lookupLocalRdrEnv _        _            = Nothing
 
 lookupLocalRdrOcc :: LocalRdrEnv -> OccName -> Maybe Name
 lookupLocalRdrOcc (env, _) occ = lookupOccEnv env occ
 
 elemLocalRdrEnv :: RdrName -> LocalRdrEnv -> Bool
-elemLocalRdrEnv rdr_name (env, _)
+elemLocalRdrEnv rdr_name (env, ns)
   | isUnqual rdr_name = rdrNameOcc rdr_name `elemOccEnv` env
+  | Just name <- isExact_maybe rdr_name  = name `elemNameSet` ns
   | otherwise         = False
 
 localRdrEnvElts :: LocalRdrEnv -> [Name]
