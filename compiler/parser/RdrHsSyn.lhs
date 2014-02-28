@@ -45,6 +45,7 @@ module RdrHsSyn (
         checkValDef,          -- (SrcLoc, HsExp, HsRhs, [HsDecl]) -> P HsDecl
         checkValSig,          -- (SrcLoc, HsExp, HsRhs, [HsDecl]) -> P HsDecl
         checkPartialTypeSignature,
+        checkNoPartialType,
         checkDoAndIfThenElse,
         checkRecordSyntax,
         parseErrorSDoc,
@@ -218,7 +219,7 @@ mkDataDefn new_or_data cType mcxt ksig data_cons maybe_deriv
        ; checkNoPartialCon data_cons
        ; case maybe_deriv of
            Just deriv -> mapM_ (checkNoPartialType (errDeriv deriv)) deriv
-           Nothing     -> return ()
+           Nothing    -> return ()
        ; let cxt = fromMaybe (noLoc []) mcxt
        ; return (HsDataDefn { dd_ND = new_or_data, dd_cType = cType
                             , dd_ctxt = cxt 
