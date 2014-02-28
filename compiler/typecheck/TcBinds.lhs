@@ -600,13 +600,14 @@ tcPolyCombi
 -- There is just one binding,
 --   it binds a single variable,
 --   it has a signature,
-tcPolyCombi rec_tc prag_fn sig bind@(origin, _) mono closed
+tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_tvs = tvs_w_scoped }) bind@(origin, _) mono closed
   -- TODOT clean up after implementing the extra-constraints wildcard
   = do { -- let skol_info = SigSkol (FunSigCtxt (idName poly_id)) (mkPhiTy theta tau)
              -- prag_sigs = prag_fn (idName poly_id)
        -- ; tvs <- mapM (skolemiseSigTv . snd) tvs_w_scoped
        ; ((binds', mono_infos), wanted)
              <- captureConstraints $
+                tcExtendTyVarEnv2 [(n,tv) | (Just n, tv) <- tvs_w_scoped] $
                 tcMonoBinds rec_tc (\_ -> Just sig) LetLclBndr [bind]
        ; (TcLclEnv { tcl_tv_substs = substs }) <- getLclEnv
        ; let name_taus = [(name, idType mono_id) | (name, _, mono_id) <- mono_infos]
@@ -1308,11 +1309,10 @@ tcTySig (L loc (IdSig id))
 tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty extra wcs))
   = setSrcSpan loc $ 
     do { nwc_tvs <- mapM newWildcardVarMetaKind wcs
-       ; (TcLclEnv {tcl_named_wildcards = nwc_map_ref}) <- getLclEnv
-       ; updMutVar nwc_map_ref (\m -> foldr (uncurry insertNamedWildcard) m (zip wcs (map mkTyVarTy nwc_tvs)))
-       ; sigma_ty <- tcHsSigType (FunSigCtxt name1) hs_ty
-       ; sigAndSubsts <- mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names)
-       ; return (sigAndSubsts, nwc_tvs) }
+       ; sigma_ty <- tcExtendTyVarEnv nwc_tvs $ tcHsSigType (FunSigCtxt name1) hs_ty
+       ; sigandsubsts <- mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names)
+       ; let sigandsubsts' = map (\(sig,subst) -> (sig { sig_tvs = sig_tvs sig ++ zipWith ((,) . Just) wcs nwc_tvs }, subst)) sigandsubsts
+       ; return (sigandsubsts', nwc_tvs) }
 tcTySig _ = return ([], [])
 
 instTcTySigFromId :: SrcSpan -> Id -> TcM (TcSigInfo, TvSubst)

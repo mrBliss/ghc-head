@@ -532,22 +532,8 @@ tc_hs_type hs_ty@(HsTyLit (HsStrTy s)) exp_kind
 tc_hs_type HsWildcardTy (EK _ _) = panic "tc_hs_type HsWildcardTy"
   -- unnamed wildcards should have been removed in the renamer...
 
-tc_hs_type (HsNamedWildcardTy name) ek = tcMetaTyVarForNwc name ek
-
--- Get the meta type variable that will replace the named wildcard
--- (nwc) (passed as the name of the nwc). If it's the first occurrence
--- of the nwc, return a new meta type variable and store the mapping
--- (in a Map within a TcRef). If the same nwc is encountered again,
--- the same meta type variable will be returned.
-tcMetaTyVarForNwc :: Name -> ExpKind -> TcM TcType
-tcMetaTyVarForNwc name exp_kind =
-  do { (TcLclEnv {tcl_named_wildcards = nwc_map_ref}) <- getLclEnv
-     ; nwc_map <- readMutVar nwc_map_ref
-     ; case lookupNamedWildcard name nwc_map of -- TODOT check kind?
-       Just ty -> do checkExpectedKind ty (typeKind ty) exp_kind
-                     return ty
-       Nothing -> panic "tcMetaTyVarForNwc: unbound named wildcard"
-     }
+tc_hs_type (HsNamedWildcardTy name) ek = panic "tc_hs_type HsNamedWildcardTy"
+  -- named wildcards should have been replaced by type variables in the renamer...
 
 ---------------------------
 tupKindSort_maybe :: TcKind -> Maybe TupleSort
