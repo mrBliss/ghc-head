@@ -159,8 +159,8 @@ checkNoPartialCon con_decls =
         containsWildcardRes ResTyH98 = False
 
 checkNoPartialType :: SDoc -> LHsType RdrName -> P ()
-checkNoPartialType context_msg ty@(L l _) = when (containsWildcard ty) $
-                                        parseErrorSDoc l err
+checkNoPartialType context_msg ty@(L l _) =
+  when (containsWildcard ty) $ parseErrorSDoc l err
   where err = ptext (sLit "Wildcard not allowed") $$ context_msg -- TODOT message
 
 containsWildcard :: LHsType RdrName -> Bool
@@ -1159,6 +1159,11 @@ mkImport :: CCallConv
          -> (Located FastString, Located RdrName, LHsType RdrName)
          -> P (HsDecl RdrName)
 mkImport cconv safety (L loc entity, v, ty)
+  | containsWildcard ty
+    = parseErrorSDoc (getLoc ty) $
+      ptext (sLit "Wildcard not allowed") $$
+      ptext (sLit "In foreign import declaration") <+> quotes (ppr v) $$
+      quotes (ppr ty)
   | cconv == PrimCallConv                      = do
   let funcTarget = CFunction (StaticTarget entity Nothing True)
       importSpec = CImport PrimCallConv safety Nothing funcTarget
@@ -1232,8 +1237,11 @@ parseCImport cconv safety nm str =
 mkExport :: CCallConv
          -> (Located FastString, Located RdrName, LHsType RdrName)
          -> P (HsDecl RdrName)
-mkExport cconv (L _ entity, v, ty) = return $
-  ForD (ForeignExport v ty noForeignExportCoercionYet (CExport (CExportStatic entity' cconv)))
+mkExport cconv (L _ entity, v, ty) = do
+  checkNoPartialType (ptext (sLit "In foreign export declaration") <+>
+                      quotes (ppr v) $$ quotes (ppr ty)) ty
+  return $ ForD (ForeignExport v ty noForeignExportCoercionYet
+                 (CExport (CExportStatic entity' cconv)))
   where
     entity' | nullFS entity = mkExtName (unLoc v)
             | otherwise     = entity
