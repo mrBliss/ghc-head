@@ -817,31 +817,32 @@ checkPartialTypeSignature fullTy = case fullTy of
     hintNamed   = "A named wildcard cannot occur as a constraint"
     hintNested  = "An extra-constraints wildcard is only allowed at the top-level of the signature"
 
-    checkNoExtraConstraintsWildcard ty = go' ty
+    checkNoExtraConstraintsWildcard (L lc ty) = go ty
+      where
+        -- Report nested (named) extra-constraints wildcards
+        go' = go . unLoc
+        go (HsAppTy x y)            = go' x >> go' y
+        go (HsFunTy x y)            = go' x >> go' y
+        go (HsListTy x)             = go' x
+        go (HsPArrTy x)             = go' x
+        go (HsTupleTy _ xs)         = mapM_ go' xs
+        go (HsOpTy x _ y)           = go' x >> go' y
+        go (HsParTy x)              = go' x
+        go (HsIParamTy _ x)         = go' x
+        go (HsEqTy x y)             = go' x >> go' y
+        go (HsKindSig x y)          = go' x >> go' y
+        go (HsDocTy x _)            = go' x
+        go (HsBangTy _ x)           = go' x
+        go (HsRecTy xs)             = mapM_ (go' . getBangType . cd_fld_type) xs
+        go (HsExplicitListTy _ xs)  = mapM_ go' xs
+        go (HsExplicitTupleTy _ xs) = mapM_ go' xs
+        go (HsWrapTy _ x)           = go' (noLoc x)
+        go (HsForAllTy _ _ (L _ ctxt) x)
+          | any (isWildcardTy . unLoc) ctxt = err hintNested lc ty
+          | any (isNamedWildcardTy . unLoc) ctxt = err hintNamed lc ty
+          | otherwise               = go' x
+        go _                        = return ()
 
-    -- Report nested (named) extra-constraints wildcards
-    go' = go . unLoc
-    go (HsAppTy x y)            = go' x >> go' y
-    go (HsFunTy x y)            = go' x >> go' y
-    go (HsListTy x)             = go' x
-    go (HsPArrTy x)             = go' x
-    go (HsTupleTy _ xs)         = mapM_ go' xs
-    go (HsOpTy x _ y)           = go' x >> go' y
-    go (HsParTy x)              = go' x
-    go (HsIParamTy _ x)         = go' x
-    go (HsEqTy x y)             = go' x >> go' y
-    go (HsKindSig x y)          = go' x >> go' y
-    go (HsDocTy x _)            = go' x
-    go (HsBangTy _ x)           = go' x
-    go (HsRecTy xs)             = mapM_ (go' . getBangType . cd_fld_type) xs
-    go (HsExplicitListTy _ xs)  = mapM_ go' xs
-    go (HsExplicitTupleTy _ xs) = mapM_ go' xs
-    go (HsWrapTy _ x)           = go' (noLoc x)
-    go ty@(HsForAllTy _ _ (L lc ctxt) x)
-      | any (isWildcardTy . unLoc) ctxt = err hintNested lc ty
-      | any (isNamedWildcardTy . unLoc) ctxt = err hintNamed lc ty
-      | otherwise               = go' x
-    go _                        = return ()
 
 checkDoAndIfThenElse :: LHsExpr RdrName
                      -> Bool
