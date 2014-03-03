@@ -17,6 +17,8 @@ test('HigherRank1', normal, compile, [''])
 test('HigherRank2', normal, compile, [''])
 test('Meltdown', normal, compile, [''])
 test('NamedTyVar', normal, compile, [''])
+# Bug
+test('PatBind', normal, compile, [''])
 test('Recursive', normal, compile, [''])
 test('ShowNamed', normal, compile, [''])
 test('SimpleGen', normal, compile, [''])
