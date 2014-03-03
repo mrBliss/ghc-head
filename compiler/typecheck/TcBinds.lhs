@@ -609,32 +609,33 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_tvs = tvs_w_scoped }) bind mono 
   = do { -- let skol_info = SigSkol (FunSigCtxt (idName poly_id)) (mkPhiTy theta tau)
              -- prag_sigs = prag_fn (idName poly_id)
        -- ; tvs <- mapM (skolemiseSigTv . snd) tvs_w_scoped
-       ; ((binds', mono_infos), wanted)
+       ; ((binds', [mono_info]), wanted)
              <- captureConstraints $
                 tcExtendTyVarEnv2 [(n,tv) | (Just n, tv) <- tvs_w_scoped] $
                 tcMonoBinds rec_tc (\_ -> Just sig) LetLclBndr [bind]
        ; (TcLclEnv { tcl_tv_substs = substs }) <- getLclEnv
-       ; let name_taus = [(name, idType mono_id) | (name, _, mono_id) <- mono_infos]
+       ; let (name, _, mono_id) = mono_info
+             name_tau = (name, idType mono_id)
              subst = foldl1 unionTvSubst substs
        ; (qtvs, givens, mr_bites, ev_binds) <-
-                          simplifyInfer closed mono name_taus wanted
+                          simplifyInfer closed mono [name_tau] wanted
 
        ; inferred_theta <- zonkTcThetaType (map evVarPred givens)
-       ; exports <- checkNoErrs $ mapM (mkExport prag_fn qtvs inferred_theta subst) mono_infos
+       ; export <- checkNoErrs $ mkExport prag_fn qtvs inferred_theta subst mono_info
 
        ; loc <- getSrcSpanM
-       ; let poly_ids = map abe_poly exports
+       ; let poly_id = abe_poly export
              final_closed | closed && not mr_bites = TopLevel
                           | otherwise              = NotTopLevel
              abs_bind = L loc $
                         AbsBinds { abs_tvs = qtvs
                                  , abs_ev_vars = givens, abs_ev_binds = ev_binds
-                                 , abs_exports = exports, abs_binds = binds' }
+                                 , abs_exports = [export], abs_binds = binds' }
 
        ; traceTc "Binding:" (ppr final_closed $$
-                             ppr (poly_ids `zip` map idType poly_ids))
-       ; return (unitBag abs_bind, poly_ids, final_closed) }
-         -- poly_ids are guaranteed zonked by mkExport
+                             ppr (poly_id, idType poly_id))
+       ; return (unitBag abs_bind, [poly_id], final_closed) }
+         -- poly_id is guaranteed to be zonked by mkExport
 
 --------------
 mkExport :: PragFun
