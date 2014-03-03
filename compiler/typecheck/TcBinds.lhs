@@ -680,7 +680,9 @@ mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
               poly_id_type = mkSigmaTy (varSetElems wildcard_tvs)
                                (substTheta subst ann_theta) (substTy subst ann_tau)
                -- Only in case of a partial type signature
-              poly_id' = if isJust mb_sig then setIdType poly_id poly_id_type else poly_id
+              poly_id' = case mb_sig of
+                           Just sig | isPartialSig sig -> setIdType poly_id poly_id_type
+                           _ -> poly_id
 
         -- poly_id' has to be zonked in case of a partial type signature
         ; poly_id' <- zonkId poly_id'
