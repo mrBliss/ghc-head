@@ -149,6 +149,8 @@ data TcSigInfo
                            -- Just n <=> this skolem is lexically in scope with name n
                            -- See Note [Kind vars in sig_tvs]
                      	   -- See Note [More instantiated than scoped] in TcBinds
+        sig_nwcs   :: [(Maybe Name, TcTyVar)],
+                           -- Instantiated wildcard variables
 
         sig_theta  :: TcThetaType,  -- Instantiated theta
 

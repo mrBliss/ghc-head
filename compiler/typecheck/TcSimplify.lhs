@@ -1,6 +1,6 @@
 \begin{code}
 module TcSimplify(
-       simplifyInfer, quantifyPred,
+       simplifyInfer, simplifyInfer2, quantifyPred,
        simplifyAmbiguityCheck,
        simplifyDefault,
        simplifyRule, simplifyTop, simplifyInteractive,
@@ -220,12 +220,36 @@ simplifyInfer :: Bool
                                     --   so the results type is not as general as
                                     --   it could be
                       TcEvBinds)    -- ... binding these evidence variables
-simplifyInfer _top_lvl apply_mr name_taus wanteds
+simplifyInfer top_lvl apply_mr name_taus wanteds
   | isEmptyWC wanteds
   = do { gbl_tvs <- tcGetGlobalTyVars
        ; qtkvs <- quantifyTyVars gbl_tvs (tyVarsOfTypes (map snd name_taus))
        ; traceTc "simplifyInfer: empty WC" (ppr name_taus $$ ppr qtkvs)
        ; return (qtkvs, [], False, emptyTcEvBinds) }
+  | otherwise
+  = do { ev_binds_var <- newTcEvBinds
+       ; (qtvs, evvars, mr_bites) <- simplifyInfer2 top_lvl apply_mr name_taus wanteds ev_binds_var
+       ; return (qtvs, evvars, mr_bites, TcEvBinds ev_binds_var)
+       }
+
+
+simplifyInfer2 :: Bool
+              -> Bool                  -- Apply monomorphism restriction
+              -> [(Name, TcTauType)]   -- Variables to be generalised,
+                                       -- and their tau-types
+              -> WantedConstraints
+              -> EvBindsVar
+              -> TcM ([TcTyVar],    -- Quantify over these type variables
+                      [EvVar],      -- ... and these constraints
+                      Bool)         -- The monomorphism restriction did something
+                                    --   so the results type is not as general as
+                                    --   it could be
+simplifyInfer2 _top_lvl apply_mr name_taus wanteds ev_binds_var
+  | isEmptyWC wanteds
+  = do { gbl_tvs <- tcGetGlobalTyVars
+       ; qtkvs <- quantifyTyVars gbl_tvs (tyVarsOfTypes (map snd name_taus))
+       ; traceTc "simplifyInfer: empty WC" (ppr name_taus $$ ppr qtkvs)
+       ; return (qtkvs, [], False) }
 
   | otherwise
   = do { traceTc "simplifyInfer {"  $ vcat
@@ -250,7 +274,6 @@ simplifyInfer _top_lvl apply_mr name_taus wanteds
               -- bindings, so we can't just revert to the input
               -- constraint.
 
-       ; ev_binds_var <- newTcEvBinds
        ; wanted_transformed_incl_derivs
                <- solveWantedsTcMWithEvBinds ev_binds_var wanteds solve_wanteds
                                -- Post: wanted_transformed are zonked
@@ -321,7 +344,7 @@ simplifyInfer _top_lvl apply_mr name_taus wanteds
                  ; emitConstraints wanted_transformed
                     -- Includes insolubles (if -fdefer-type-errors)
                     -- as well as flats and implications
-                 ; return ([], [], mr_bites, TcEvBinds ev_binds_var) }
+                 ; return ([], [], mr_bites) }
          else do
 
       {     -- Step 7) Emit an implication
@@ -351,10 +374,10 @@ simplifyInfer _top_lvl apply_mr name_taus wanteds
                        -- ic_skols, ic_given give rest of result
                   , ptext (sLit "qtvs =") <+> ppr qtvs
                   , ptext (sLit "spb =") <+> ppr quant_pred_candidates
+                  , ptext (sLit "mbev =") <+> ppr minimal_bound_ev_vars
                   , ptext (sLit "bound =") <+> ppr bound ]
 
-       ; return ( qtvs, minimal_bound_ev_vars
-                , mr_bites,  TcEvBinds ev_binds_var) } }
+       ; return ( qtvs, minimal_bound_ev_vars, mr_bites) } }
 
 quantifyPred :: TyVarSet           -- Quantifying over these
              -> PredType -> Bool   -- True <=> quantify over this wanted

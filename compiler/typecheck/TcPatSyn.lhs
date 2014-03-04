@@ -218,6 +218,7 @@ tc_pat_syn_wrapper_from_expr (L loc name) lexpr args univ_tvs ex_tvs theta pat_t
              lbind = noLoc bind
        ; let sig = TcSigInfo{ sig_id = wrapper_id
                             , sig_tvs = map (\tv -> (Nothing, tv)) wrapper_tvs
+                            , sig_nwcs = []
                             , sig_theta = wrapper_theta
                             , sig_tau = wrapper_tau
                             , sig_loc = loc

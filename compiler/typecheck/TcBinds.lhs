@@ -522,6 +522,7 @@ tcPolyCheck :: RecFlag       -- Whether it's recursive after breaking
 --   it has a signature,
 tcPolyCheck rec_tc prag_fn
             sig@(TcSigInfo { sig_id = poly_id, sig_tvs = tvs_w_scoped 
+                           , sig_nwcs = sig_nwcs
                            , sig_theta = theta, sig_tau = tau, sig_loc = loc })
             bind@(origin, _)
   = do { ev_vars <- newEvVars theta
@@ -531,7 +532,7 @@ tcPolyCheck rec_tc prag_fn
        ; (ev_binds, (binds', [mono_info])) 
             <- setSrcSpan loc $  
                checkConstraints skol_info tvs ev_vars $
-               tcExtendTyVarEnv2 [(n,tv) | (Just n, tv) <- tvs_w_scoped] $
+               tcExtendTyVarEnv2 [(n,tv) | (Just n, tv) <- tvs_w_scoped ++ sig_nwcs] $
                tcMonoBinds rec_tc (\_ -> Just sig) LetLclBndr [bind]
 
        ; spec_prags <- tcSpecPrags poly_id prag_sigs
@@ -600,32 +601,44 @@ tcPolyCombi
 -- There is just one binding,
 --   it binds a single variable,
 --   it has a signature,
-tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_tvs = tvs_w_scoped }) bind@(origin, _) mono closed
+tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_tvs,
+                                            sig_nwcs = sig_nwcs,
+                                            sig_theta = sig_theta, sig_tau = sig_tau
+                                          }) bind@(origin, _) mono closed
   -- TODOT clean up after implementing the extra-constraints wildcard
-  = do { -- let skol_info = SigSkol (FunSigCtxt (idName poly_id)) (mkPhiTy theta tau)
-             -- prag_sigs = prag_fn (idName poly_id)
+  = do { ev_vars <- newEvVars sig_theta
+       ; let skol_info = SigSkol (FunSigCtxt (idName sig_poly_id)) (mkPhiTy sig_theta sig_tau)
        -- ; tvs <- mapM (skolemiseSigTv . snd) tvs_w_scoped
-       ; ((binds', [mono_info]), wanted)
+       ; ((ev_binds, (binds', [mono_info])), wanted)
              <- captureConstraints $
-                tcExtendTyVarEnv2 [(n,tv) | (Just n, tv) <- tvs_w_scoped] $
+                tcExtendTyVarEnv2 [(n,tv) | (Just n, tv) <- sig_tvs ++ sig_nwcs] $
+                checkConstraints skol_info [] ev_vars $     -- DOMI: the non-wildcards in sig_tvs should be skolemised?
                 tcMonoBinds rec_tc (\_ -> Just sig) LetLclBndr [bind]
        ; (TcLclEnv { tcl_tv_substs = substs }) <- getLclEnv
        ; let (name, _, mono_id) = mono_info
              name_tau = (name, idType mono_id)
              subst = foldl1 unionTvSubst substs
-       ; (qtvs, givens, mr_bites, ev_binds) <-
-                          simplifyInfer closed mono [name_tau] wanted
-
-       ; inferred_theta <- zonkTcThetaType (map evVarPred givens)
-       ; export <- checkNoErrs $ mkExport prag_fn qtvs inferred_theta subst mono_info
-
+       ; traceTc "tcPolyCombi Wanted:" (ppr wanted)
+       ; ev_binds_var <- case ev_binds of
+               TcEvBinds ev_binds_var -> return ev_binds_var
+               EvBinds bag -> ASSERT (isEmptyBag bag)
+                              newTcEvBinds
+       ; (qtvs, givens, mr_bites) <-
+                          simplifyInfer2 closed mono [name_tau] wanted ev_binds_var
+       ; gbl_tvs <- tcGetGlobalTyVars
+       ; q_sig_tvs <- quantifyTyVars gbl_tvs (extendVarSetList emptyVarSet (map snd sig_tvs))
+       ; inferred_theta <- zonkTcThetaType (map evVarPred givens ++ sig_theta)
+       ; traceTc "tcPolyCombi: " (ppr ev_binds $$
+                                  ppr inferred_theta $$
+                                  ppr qtvs)
+       ; export <- checkNoErrs $ mkExport prag_fn (q_sig_tvs ++ qtvs) (inferred_theta) subst mono_info
        ; loc <- getSrcSpanM
        ; let poly_id = abe_poly export
              final_closed | closed && not mr_bites = TopLevel
                           | otherwise              = NotTopLevel
              abs_bind = L loc $
-                        AbsBinds { abs_tvs = qtvs
-                                 , abs_ev_vars = givens, abs_ev_binds = ev_binds
+                        AbsBinds { abs_tvs = q_sig_tvs ++ qtvs
+                                 , abs_ev_vars = ev_vars ++ givens, abs_ev_binds = TcEvBinds ev_binds_var
                                  , abs_exports = [export], abs_binds = binds' }
 
        ; traceTc "Binding:" (ppr final_closed $$
@@ -659,27 +672,20 @@ mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
                                               Nothing -> emptyVarSet
         ; wildcard_tvs' <- tyVarsOfTypes <$> mapM zonkTcTyVar (varSetElems wildcard_tvs'')
         ; let wildcard_tvs = wildcard_tvs' `minusVarSet` gbl_tvs 
-        ; let poly_id  = case mb_sig of
-                           Nothing  -> mkLocalId poly_name inferred_poly_ty
-                           Just sig -> sig_id sig
+                -- don't quantify over wildcard variables from the global scope...
               init_tvs = tyVarsOfType mono_ty `unionVarSet` wildcard_tvs
               -- In the inference case (no signature) this stuff figures out
               -- the right type variables and theta to quantify over
               -- See Note [Impedence matching]
               my_tvs2 = closeOverKinds (growThetaTyVars theta init_tvs)
                             -- Include kind variables!  Trac #7916
-              -- don't quantify over wildcard variables from the global scope...
               my_tvs   = filter (`elemVarSet` my_tvs2) qtvs   -- Maintain original order
               my_theta = filter (quantifyPred (mkVarSet my_tvs)) theta
+
+        ; let sel_poly_ty = mkSigmaTy qtvs theta mono_ty
               inferred_poly_ty = mkSigmaTy my_tvs my_theta mono_ty
 
-        ; let (_tvs, ann_theta, ann_tau) = tcSplitSigmaTy (idType poly_id)
-              poly_id_type = mkSigmaTy (varSetElems wildcard_tvs)
-                               (substTheta subst ann_theta) (substTy subst ann_tau)
-               -- Only in case of a partial type signature
-              poly_id' = case mb_sig of
-                           Just sig | isPartialSig sig -> setIdType poly_id poly_id_type
-                           _ -> poly_id
+        ; let poly_id' =  mkLocalId poly_name inferred_poly_ty
 
         -- poly_id' has to be zonked in case of a partial type signature
         ; poly_id' <- zonkId poly_id'
@@ -687,7 +693,6 @@ mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
         ; spec_prags <- tcSpecPrags poly_id' prag_sigs
                 -- tcPrags requires a zonked poly_id'
 
-        ; let sel_poly_ty = mkSigmaTy qtvs theta mono_ty
         ; traceTc "mkExport: check sig"
                   (ppr poly_name $$ ppr sel_poly_ty $$ ppr (idType poly_id'))
 
@@ -1314,7 +1319,7 @@ tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty extra wcs))
     do { nwc_tvs <- mapM newWildcardVarMetaKind wcs
        ; sigma_ty <- tcExtendTyVarEnv nwc_tvs $ tcHsSigType (FunSigCtxt name1) hs_ty
        ; sigandsubsts <- mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names)
-       ; let sigandsubsts' = map (\(sig,subst) -> (sig { sig_tvs = sig_tvs sig ++ zipWith ((,) . Just) wcs nwc_tvs }, subst)) sigandsubsts
+       ; let sigandsubsts' = map (\(sig,subst) -> (sig { sig_nwcs = zipWith ((,) . Just) wcs nwc_tvs }, subst)) sigandsubsts
        ; return (sigandsubsts', nwc_tvs) }
 tcTySig _ = return ([], [])
 
@@ -1323,6 +1328,7 @@ instTcTySigFromId loc id
   = do { (tvs, theta, tau, subst) <- tcInstType inst_sig_tyvars (idType id)
        ; return (TcSigInfo { sig_id = id, sig_loc = loc
                            , sig_tvs = [(Nothing, tv) | tv <- tvs]
+                           , sig_nwcs = []
                            , sig_theta = theta, sig_tau = tau
                            , sig_extra = Nothing },
                  subst) }
@@ -1346,6 +1352,7 @@ instTcTySig hs_ty@(L loc _) sigma_ty extra name
                              else return Nothing
        ; return (TcSigInfo { sig_id = poly_id, sig_loc = loc
                            , sig_tvs = zipEqual "instTcTySig" scoped_tvs inst_tvs
+                           , sig_nwcs = []
                            , sig_theta = theta, sig_tau = tau
                            , sig_extra = extraConstraints },
                  subst) }
