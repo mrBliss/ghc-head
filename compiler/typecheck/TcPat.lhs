@@ -152,6 +152,9 @@ data TcSigInfo
                            -- Just n <=> this skolem is lexically in scope with name n
                            -- See Note [Binding scoped type variables]
 
+        sig_nwcs   :: [(Maybe Name, TcTyVar)],
+                           -- Instantiated wildcard variables
+
         sig_theta  :: TcThetaType,  -- Instantiated theta
 
         sig_extra  :: Maybe TcTyVar, -- A metavariable that will unify
