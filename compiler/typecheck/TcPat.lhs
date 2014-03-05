@@ -53,7 +53,6 @@ import Util
 import Outputable
 import FastString
 import Control.Monad
-import Data.Maybe( isJust )
 \end{code}
 
 
@@ -157,7 +156,7 @@ data TcSigInfo
 
         sig_theta  :: TcThetaType,  -- Instantiated theta
 
-        sig_extra  :: Maybe TcTyVar, -- A metavariable that will unify
+        sig_extra  :: Bool,          -- A metavariable that will unify
                                      -- with the extra constraints
                                      -- inferred during generalisation
                                      -- See Note [Partial type signatures] TODOT write
@@ -193,7 +192,7 @@ instance Outputable TcSigInfo where
 
 isPartialSig :: TcSigInfo -> Bool
 isPartialSig (TcSigInfo { sig_theta = theta, sig_extra = extra, sig_tau = tau, sig_tvs = sig_tvs })
-  = any containsWildcards theta || any (isWildcardVar . snd) sig_tvs || isJust extra || containsWildcards tau
+  = any containsWildcards theta || any (isWildcardVar . snd) sig_tvs || extra || containsWildcards tau
 \end{code}
 
 Note [Binding scoped type variables]

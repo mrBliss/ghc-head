@@ -570,7 +570,7 @@ tcPolyInfer rec_tc prag_fn tc_sig_fn mono closed bind_list
        ; let name_taus = [(name, idType mono_id) | (name, _, mono_id) <- mono_infos]
        ; traceTc "simplifyInfer call" (ppr name_taus $$ ppr wanted)
        ; (qtvs, givens, mr_bites, ev_binds) <- 
-                          simplifyInfer closed mono name_taus wanted
+                          simplifyInfer closed mono True name_taus wanted
 
        ; theta <- zonkTcThetaType (map evVarPred givens)
        -- We need to check inferred theta for validity. The reason is that we
@@ -606,7 +606,7 @@ tcPolyCombi
 --   it binds a single variable,
 --   it has a signature,
 tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_tvs,
-                                            sig_nwcs = sig_nwcs,
+                                            sig_nwcs = sig_nwcs, sig_extra = sig_extra,
                                             sig_theta = sig_theta, sig_tau = sig_tau
                                           }) bind mono closed
   -- TODOT clean up after implementing the extra-constraints wildcard
@@ -628,7 +628,9 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                EvBinds bag -> ASSERT (isEmptyBag bag)
                               newTcEvBinds
        ; (qtvs, givens, mr_bites) <-
-                          simplifyInfer2 closed mono [name_tau] wanted ev_binds_var
+                          simplifyInfer2 closed mono sig_extra [name_tau] wanted ev_binds_var
+       ; when (givens /= [] && not sig_extra) $ do
+           return () -- TODO report error somehow?
        ; gbl_tvs <- tcGetGlobalTyVars
        ; q_sig_tvs <- quantifyTyVars gbl_tvs (extendVarSetList emptyVarSet (map snd sig_tvs))
        ; inferred_theta <- zonkTcThetaType (map evVarPred givens ++ sig_theta)
@@ -1323,7 +1325,7 @@ instTcTySigFromId loc id
                            , sig_tvs = [(Nothing, tv) | tv <- tvs]
                            , sig_nwcs = []
                            , sig_theta = theta, sig_tau = tau
-                           , sig_extra = Nothing },
+                           , sig_extra = False },
                  subst) }
   where
     -- Hack: in an instance decl we use the selector id as
@@ -1345,7 +1347,7 @@ instTcTySig hs_ty@(L loc _) sigma_ty extra name
                            , sig_tvs = findScopedTyVars hs_ty sigma_ty inst_tvs
                            , sig_nwcs = []
                            , sig_theta = theta, sig_tau = tau
-                           , sig_extra = extraConstraints },
+                           , sig_extra = extra },
                  subst) }
 
 -------------------------------

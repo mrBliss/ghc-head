@@ -1483,6 +1483,7 @@ tcRnExpr hsc_env rdr_expr
                                       {-# SCC "simplifyInfer" #-}
                                       simplifyInfer True {- Free vars are closed -}
                                                     False {- No MR for now -}
+                                                    True  {- Extra constraints allowed -}
                                                     [(fresh_it, res_ty)]
                                                     lie ;
     _ <- simplifyInteractive lie_top ;       -- Ignore the dicionary bindings

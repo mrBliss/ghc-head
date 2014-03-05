@@ -239,6 +239,7 @@ simplifyDefault theta
 \begin{code}
 simplifyInfer :: Bool
               -> Bool                  -- Apply monomorphism restriction
+              -> Bool                  -- Allow returning extra constraints
               -> [(Name, TcTauType)]   -- Variables to be generalised,
                                        -- and their tau-types
               -> WantedConstraints
@@ -248,7 +249,7 @@ simplifyInfer :: Bool
                                     --   so the results type is not as general as
                                     --   it could be
                       TcEvBinds)    -- ... binding these evidence variables
-simplifyInfer top_lvl apply_mr name_taus wanteds
+simplifyInfer top_lvl apply_mr extra_constraints name_taus wanteds
   | isEmptyWC wanteds
   = do { gbl_tvs <- tcGetGlobalTyVars
        ; qtkvs <- quantifyTyVars gbl_tvs (tyVarsOfTypes (map snd name_taus))
@@ -256,13 +257,14 @@ simplifyInfer top_lvl apply_mr name_taus wanteds
        ; return (qtkvs, [], False, emptyTcEvBinds) }
   | otherwise
   = do { ev_binds_var <- newTcEvBinds
-       ; (qtvs, evvars, mr_bites) <- simplifyInfer2 top_lvl apply_mr name_taus wanteds ev_binds_var
+       ; (qtvs, evvars, mr_bites) <- simplifyInfer2 top_lvl apply_mr extra_constraints name_taus wanteds ev_binds_var
        ; return (qtvs, evvars, mr_bites, TcEvBinds ev_binds_var)
        }
 
 
 simplifyInfer2 :: Bool
               -> Bool                  -- Apply monomorphism restriction
+              -> Bool                  -- Allow returning extra constraints
               -> [(Name, TcTauType)]   -- Variables to be generalised,
                                        -- and their tau-types
               -> WantedConstraints
@@ -272,7 +274,7 @@ simplifyInfer2 :: Bool
                       Bool)         -- The monomorphism restriction did something
                                     --   so the results type is not as general as
                                     --   it could be
-simplifyInfer2 _top_lvl apply_mr name_taus wanteds ev_binds_var
+simplifyInfer2 _top_lvl apply_mr extra_constraints name_taus wanteds ev_binds_var
   | isEmptyWC wanteds
   = do { gbl_tvs <- tcGetGlobalTyVars
        ; qtkvs <- quantifyTyVars gbl_tvs (tyVarsOfTypes (map snd name_taus))
@@ -394,6 +396,13 @@ simplifyInfer2 _top_lvl apply_mr name_taus wanteds ev_binds_var
                         -- Don't add the quantified variables here, because
                         -- they are also bound in ic_skols and we want them to be
                         -- tidied uniformly
+       ; if not (null minimal_flat_preds || extra_constraints)
+         then do
+           unsolved_wanted <- newFlatWanteds (GivenOrigin skol_info) minimal_flat_preds
+           reportUnsolved2 (mkFlatWC unsolved_wanted) ev_binds_var
+           return (qtvs, [], mr_bites)
+         else do
+       {
 
        ; minimal_bound_ev_vars <- mapM TcM.newEvVar minimal_flat_preds
        ; let implic = Implic { ic_untch    = pushUntouchables untch
@@ -417,7 +426,7 @@ simplifyInfer2 _top_lvl apply_mr name_taus wanteds ev_binds_var
                   , ptext (sLit "mbev =") <+> ppr minimal_bound_ev_vars
                   , ptext (sLit "bound =") <+> ppr bound ]
 
-       ; return ( qtvs, minimal_bound_ev_vars, mr_bites) } }
+       ; return ( qtvs, minimal_bound_ev_vars, mr_bites) } } }
 
 quantifyPred :: TyVarSet           -- Quantifying over these
              -> PredType -> Bool   -- True <=> quantify over this wanted
