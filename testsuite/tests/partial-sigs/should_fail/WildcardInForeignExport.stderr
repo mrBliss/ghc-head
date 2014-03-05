@@ -1,5 +1,5 @@
 
 WildcardInForeignExport.hs:6:37:
     Wildcard not allowed
-    In foreign export declaration ‛foo’
-    ‛CInt -> _’
+    In foreign export declaration ‘foo’
+    ‘CInt -> _’
