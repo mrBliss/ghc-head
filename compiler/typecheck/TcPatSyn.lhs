@@ -54,7 +54,7 @@ tcPatSynDecl lname@(L _ name) details lpat dir
        ; let named_taus = (name, pat_ty):map (\arg -> (getName arg, varType arg)) args
 
        ; traceTc "tcPatSynDecl::wanted" (ppr named_taus $$ ppr wanted)
-       ; (qtvs, given_dicts, _mr_bites, ev_binds) <- simplifyInfer True False named_taus wanted
+       ; (qtvs, given_dicts, _mr_bites, ev_binds) <- simplifyInfer True False True named_taus wanted
        ; let req_dicts = given_dicts
 
        ; (ex_vars, prov_dicts) <- tcCollectEx lpat'
@@ -222,7 +222,7 @@ tc_pat_syn_wrapper_from_expr (L loc name) lexpr args univ_tvs ex_tvs theta pat_t
                             , sig_theta = wrapper_theta
                             , sig_tau = wrapper_tau
                             , sig_loc = loc
-                            , sig_extra = Nothing
+                            , sig_extra = False
                             }
        ; (wrapper_binds, _, _) <- tcPolyCheck NonRecursive (const []) sig (Generated, lbind)
        ; traceTc "tcPatSynDecl wrapper" $ ppr wrapper_binds
