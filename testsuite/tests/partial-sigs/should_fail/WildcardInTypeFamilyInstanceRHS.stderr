@@ -1,5 +1,5 @@
 
 WildcardInTypeFamilyInstanceRHS.hs:8:25:
     Wildcard not allowed
-    In type family instance equation of ‛Dual’:
+    In type family instance equation of ‘Dual’:
     Maybe _
