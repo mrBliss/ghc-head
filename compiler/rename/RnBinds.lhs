@@ -776,7 +776,7 @@ extractWildcards (L loc ty) =
       (HsExplicitTupleTy ptk tys) -> goList (HsExplicitTupleTy ptk) tys
       HsWildcardTy -> do uniq <- newUnique
                          loc <- getSrcSpanM
-                         let name = mkSystemNameAt uniq (mkTyVarOcc "_") loc
+                         let name = mkInternalName uniq (mkTyVarOcc "_") loc
                          return ([], [name], HsTyVar (nameRdrName name))
       (HsNamedWildcardTy name) -> return ([name], [], HsTyVar name)
       -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
