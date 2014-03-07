@@ -629,18 +629,18 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
            return () -- TODO report error somehow?
        ; gbl_tvs <- tcGetGlobalTyVars
        ; q_sig_tvs <- quantifyTyVars gbl_tvs (extendVarSetList emptyVarSet (map snd sig_tvs))
-       ; inferred_theta <- zonkTcThetaType (map evVarPred givens ++ sig_theta)
+       ; inferred_theta <- zonkTcThetaType (sig_theta ++ map evVarPred givens)
        ; traceTc "tcPolyCombi: " (ppr ev_binds $$
                                   ppr inferred_theta $$
                                   ppr qtvs)
-       ; export <- checkNoErrs $ mkExport prag_fn (q_sig_tvs ++ qtvs) (inferred_theta) subst mono_info
+       ; export <- checkNoErrs $ mkExport prag_fn (q_sig_tvs ++ qtvs) inferred_theta subst mono_info
        ; loc <- getSrcSpanM
        ; let poly_id = abe_poly export
              final_closed | closed && not mr_bites = TopLevel
                           | otherwise              = NotTopLevel
              abs_bind = L loc $
                         AbsBinds { abs_tvs = q_sig_tvs ++ qtvs
-                                 , abs_ev_vars = givens ++ ev_vars, abs_ev_binds = TcEvBinds ev_binds_var
+                                 , abs_ev_vars = ev_vars ++ givens, abs_ev_binds = TcEvBinds ev_binds_var
                                  , abs_exports = [export], abs_binds = binds' }
 
        ; traceTc "Binding:" (ppr final_closed $$
