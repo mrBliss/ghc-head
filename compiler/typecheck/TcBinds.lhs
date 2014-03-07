@@ -644,7 +644,7 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                           | otherwise              = NotTopLevel
              abs_bind = L loc $
                         AbsBinds { abs_tvs = q_sig_tvs ++ qtvs
-                                 , abs_ev_vars = ev_vars ++ givens, abs_ev_binds = TcEvBinds ev_binds_var
+                                 , abs_ev_vars = givens ++ ev_vars, abs_ev_binds = TcEvBinds ev_binds_var
                                  , abs_exports = [export], abs_binds = binds' }
 
        ; traceTc "Binding:" (ppr final_closed $$
