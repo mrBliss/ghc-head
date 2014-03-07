@@ -1,0 +1,3 @@
+
+ExtraConstraintsWildcardNotEnabled.hs:4:10:
+    Wildcards in type signatures need PartialTypeSignatures turned on

@@ -14,6 +14,11 @@ test('EqualityConstraint', normal, compile, [''])
 test('ExpressionSig', skip, compile, [''])
 # Not yet implemented
 test('ExpressionSigNamed', skip, compile, [''])
+test('ExtraConstraints1', normal, compile, [''])
+test('ExtraConstraints2', normal, compile, [''])
+test('ExtraConstraints3', normal, compile, [''])
+# Type equalities can't yet be inferred as extra constraints
+test('ExtraTypeEquality', skip, compile, [''])
 test('Forall1', normal, compile, [''])
 # Constraint wildcard
 test('FstIsBool', skip, compile, [''])
