@@ -9,9 +9,14 @@ test('BoolToBool', normal, compile, [''])
 test('Either', normal, compile, [''])
 test('Every', normal, compile, [''])
 test('EveryNamed', normal, compile, [''])
-# Not yet fully implemented
 test('EqualityConstraint', normal, compile, [''])
+# Not yet implemented
+test('ExpressionSig', skip, compile, [''])
+# Not yet implemented
+test('ExpressionSigNamed', skip, compile, [''])
 test('Forall1', normal, compile, [''])
+# Constraint wildcard
+test('FstIsBool', skip, compile, [''])
 test('GenNamed', normal, compile, [''])
 test('HigherRank1', normal, compile, [''])
 test('HigherRank2', normal, compile, [''])
@@ -19,11 +24,14 @@ test('Meltdown', normal, compile, [''])
 test('NamedTyVar', normal, compile, [''])
 # Bug
 test('PatBind', normal, compile, [''])
+# Not yet implemented
+test('PatternSig', skip, compile, [''])
 test('Recursive', normal, compile, [''])
+# Constraint wildcard
+test('SecondParam', skip, compile, [''])
 test('ShowNamed', normal, compile, [''])
 test('SimpleGen', normal, compile, [''])
 test('SkipMany', normal, compile, [''])
-# Not yet fully implemented
 test('SomethingShowable', normal, compile, [''])
 test('Uncurry', normal, compile, [''])
 test('UncurryNamed', normal, compile, [''])
