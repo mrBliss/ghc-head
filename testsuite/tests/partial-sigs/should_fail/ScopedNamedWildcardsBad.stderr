@@ -1,0 +1,10 @@
+
+ScopedNamedWildcardsBad.hs:9:20:
+    Occurs check: cannot construct the infinite type: t ~ (t, t1)
+    Relevant bindings include
+      y :: (t, t1) (bound at ScopedNamedWildcardsBad.hs:9:15)
+      x :: (t, t1) (bound at ScopedNamedWildcardsBad.hs:8:7)
+      test2 :: (t, t1) -> (t, t1)
+        (bound at ScopedNamedWildcardsBad.hs:8:1)
+    In the expression: x
+    In the expression: (x, undefined)
