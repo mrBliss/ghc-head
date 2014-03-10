@@ -173,8 +173,7 @@ initTc hsc_env hsc_src keep_rn_syntax mod do_this
                 tcl_tidy            = emptyTidyEnv,
                 tcl_tyvars          = tvs_var,
                 tcl_lie             = lie_var,
-                tcl_untch           = noUntouchables,
-                tcl_tv_substs       = []
+                tcl_untch           = noUntouchables
              } ;
         } ;
 

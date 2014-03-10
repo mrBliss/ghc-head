@@ -500,10 +500,7 @@ data TcLclEnv           -- Changes as we move inside an expression
                         -- Why mutable? see notes with tcGetGlobalTyVars
 
         tcl_lie  :: TcRef WantedConstraints,    -- Place to accumulate type constraints
-        tcl_errs :: TcRef Messages,             -- Place to accumulate errors
-        tcl_tv_substs :: [TvSubst] -- Substitutions that keep track of the instantiated type
-                                   -- variables in the signatures. Wildcards can also unify
-                                   -- with these type variables.
+        tcl_errs :: TcRef Messages              -- Place to accumulate errors
     }
 
 -- TODOT better location

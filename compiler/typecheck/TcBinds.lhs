@@ -281,8 +281,7 @@ tcValBinds :: TopLevelFlag
 
 tcValBinds top_lvl binds sigs thing_inside
   = do  {       -- Typecheck the signature
-          (poly_ids, sig_fn, substs, nwc_tvs) <- tcTySigs sigs
-        ; updLclEnv (\ env -> env { tcl_tv_substs = substs }) $ do {
+          (poly_ids, sig_fn, nwc_tvs) <- tcTySigs sigs
         ; let prag_fn = mkPragFun sigs (foldr (unionBags . snd) emptyBag binds)
 
                 -- Extend the envt right away with all 
@@ -292,7 +291,7 @@ tcValBinds top_lvl binds sigs thing_inside
                              tcBindGroups top_lvl sig_fn prag_fn 
                                           binds thing_inside
 
-        ; return (binds', thing) } }
+        ; return (binds', thing) }
 
 ------------------------
 tcBindGroups :: TopLevelFlag -> TcSigFun -> PragFun
@@ -577,7 +576,7 @@ tcPolyInfer rec_tc prag_fn tc_sig_fn mono closed bind_list
        -- might have inferred theta that requires language extension that is
        -- not turned on. See #8883. Example can be found in the T8883 testcase.
        ; checkValidTheta (InfSigCtxt (fst . head $ name_taus)) theta
-       ; exports <- checkNoErrs $ mapM (mkExport prag_fn qtvs theta emptyTvSubst) mono_infos
+       ; exports <- checkNoErrs $ mapM (mkExport prag_fn qtvs theta) mono_infos
 
        ; loc <- getSrcSpanM
        ; let poly_ids = map abe_poly exports
@@ -618,10 +617,8 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                 tcExtendTyVarEnv2 [(n,tv) | (Just n, tv) <- sig_tvs ++ sig_nwcs] $
                 checkConstraints skol_info [] ev_vars $     -- DOMI: the non-wildcards in sig_tvs should be skolemised?
                 tcMonoBinds rec_tc (\_ -> Just sig) LetLclBndr [bind]
-       ; (TcLclEnv { tcl_tv_substs = substs }) <- getLclEnv
        ; let (name, _, mono_id) = mono_info
              name_tau = (name, idType mono_id)
-             subst = foldl1 unionTvSubst substs
        ; traceTc "tcPolyCombi Wanted:" (ppr wanted)
        ; ev_binds_var <- case ev_binds of
                TcEvBinds ev_binds_var -> return ev_binds_var
@@ -637,7 +634,7 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
        ; traceTc "tcPolyCombi: " (ppr ev_binds $$
                                   ppr inferred_theta $$
                                   ppr qtvs)
-       ; export <- checkNoErrs $ mkExport prag_fn (q_sig_tvs ++ qtvs) inferred_theta subst mono_info
+       ; export <- checkNoErrs $ mkExport prag_fn (q_sig_tvs ++ qtvs) inferred_theta mono_info
        ; loc <- getSrcSpanM
        ; let poly_id = abe_poly export
              final_closed | closed && not mr_bites = TopLevel
@@ -655,7 +652,6 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
 --------------
 mkExport :: PragFun
          -> [TyVar] -> TcThetaType      -- Both already zonked
-         -> TvSubst
          -> MonoBindInfo
          -> TcM (ABExport Id)
 -- Only called for generalisation plan IferGen, not by CheckGen or NoGen
@@ -671,7 +667,7 @@ mkExport :: PragFun
 
 -- Pre-condition: the qtvs and theta are already zonked
 
-mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
+mkExport prag_fn qtvs theta (poly_name, mb_sig, mono_id)
   = do  { mono_ty <- zonkTcType (idType mono_id)
         ; gbl_tvs <- tcGetGlobalTyVars
         ; let wildcard_tvs'' = case mb_sig of Just sig -> tyVarsOfType (idType (sig_id sig)) `minusVarSet` gbl_tvs
@@ -1296,38 +1292,36 @@ is wrong (eg at the top level of the module),
 which is over-conservative
 
 \begin{code}
-tcTySigs :: [LSig Name] -> TcM ([TcId], TcSigFun, [TvSubst], [TcTyVar])
+tcTySigs :: [LSig Name] -> TcM ([TcId], TcSigFun, [TcTyVar])
 tcTySigs hs_sigs
   = checkNoErrs $   -- See Note [Fail eagerly on bad signatures]
     do { (ty_sigs_s, tyvarsl) <- unzip <$> mapAndRecoverM tcTySig hs_sigs
-       ; let (ty_sigs, substs) = unzip $ concat ty_sigs_s
+       ; let ty_sigs = concat ty_sigs_s
              env = mkNameEnv [(idName (sig_id sig), sig) | sig <- ty_sigs]
-       ; return (map sig_id ty_sigs, lookupNameEnv env, substs, concat tyvarsl) }
+       ; return (map sig_id ty_sigs, lookupNameEnv env, concat tyvarsl) }
 
-tcTySig :: LSig Name -> TcM ([(TcSigInfo, TvSubst)], [TcTyVar])
+tcTySig :: LSig Name -> TcM ([TcSigInfo], [TcTyVar])
 tcTySig (L loc (IdSig id))
-  = do { (sig, subst) <- instTcTySigFromId loc id
-       ; return ([(sig,subst)],[]) }
+  = do { sig <- instTcTySigFromId loc id
+       ; return ([sig], []) }
 tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty extra wcs))
   = setSrcSpan loc $ 
     do { nwc_tvs <- mapM newWildcardVarMetaKind wcs
        ; sigma_ty <- tcExtendTyVarEnv nwc_tvs $ tcHsSigType (FunSigCtxt name1) hs_ty
-       ; sigandsubsts <- mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names)
-       ; let sigandsubsts' = map (\(sig,subst) -> (sig { sig_nwcs = zipWith ((,) . Just) wcs nwc_tvs }, subst)) sigandsubsts
-       ; return (sigandsubsts', nwc_tvs) }
+       ; sigs <- mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names)
+       ; let sigs' = map (\sig -> sig { sig_nwcs = zipWith ((,) . Just) wcs nwc_tvs }) sigs
+       ; return (sigs', nwc_tvs) }
 tcTySig _ = return ([], [])
 
-instTcTySigFromId :: SrcSpan -> Id -> TcM (TcSigInfo, TvSubst)
+instTcTySigFromId :: SrcSpan -> Id -> TcM TcSigInfo
 instTcTySigFromId loc id
-  = do { (tvs, theta, tau, subst) <- tcInstType (tcInstSigTyVarsLoc loc)
-                                                (idType id)
+  = do { (tvs, theta, tau) <- tcInstType (tcInstSigTyVarsLoc loc)
+                                         (idType id)
        ; return (TcSigInfo { sig_id = id, sig_loc = loc
                            , sig_tvs = [(Nothing, tv) | tv <- tvs]
                            , sig_nwcs = []
                            , sig_theta = theta, sig_tau = tau
-                           , sig_extra = False },
-                 subst) }
-  where
+                           , sig_extra = False }) }
     -- Hack: in an instance decl we use the selector id as
     -- the template; but we do *not* want the SrcSpan on the Name of
     -- those type variables to refer to the class decl, rather to
@@ -1335,16 +1329,15 @@ instTcTySigFromId loc id
 
 instTcTySig :: LHsType Name -> TcType    -- HsType and corresponding TcType
             -> Bool                      -- Extra-constraints wildcard present
-            -> Name -> TcM (TcSigInfo, TvSubst)
+            -> Name -> TcM TcSigInfo
 instTcTySig hs_ty@(L loc _) sigma_ty extra name
-  = do { (inst_tvs, theta, tau, subst) <- tcInstType tcInstSigTyVars sigma_ty
+  = do { (inst_tvs, theta, tau) <- tcInstType tcInstSigTyVars sigma_ty
        ; return (TcSigInfo { sig_id = mkLocalId name sigma_ty
                            , sig_loc = loc
                            , sig_tvs = findScopedTyVars hs_ty sigma_ty inst_tvs
                            , sig_nwcs = []
                            , sig_theta = theta, sig_tau = tau
-                           , sig_extra = extra },
-                 subst) }
+                           , sig_extra = extra }) }
 
 -------------------------------
 data GeneralisationPlan

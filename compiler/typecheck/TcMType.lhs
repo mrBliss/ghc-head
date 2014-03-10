@@ -193,26 +193,26 @@ newFlatWanteds orig = mapM (newFlatWanted orig)
 \begin{code}
 tcInstType :: ([TyVar] -> TcM (TvSubst, [TcTyVar]))     -- How to instantiate the type variables
 	   -> TcType 					-- Type to instantiate
-	   -> TcM ([TcTyVar], TcThetaType, TcType, TvSubst)	-- Result
-		-- (type vars (excl coercion vars), preds (incl equalities), rho, substitution)
+	   -> TcM ([TcTyVar], TcThetaType, TcType)	-- Result
+		-- (type vars (excl coercion vars), preds (incl equalities), rho)
 tcInstType inst_tyvars ty
   = case tcSplitForAllTys ty of
 	([],     rho) -> let	-- There may be overloading despite no type variables;
 				-- 	(?x :: Int) => Int -> Int
 			   (theta, tau) = tcSplitPhiTy rho
 			 in
-			 return ([], theta, tau, emptyTvSubst)
+			 return ([], theta, tau)
 
 	(tyvars, rho) -> do { (subst, tyvars') <- inst_tyvars tyvars
 			    ; let (theta, tau) = tcSplitPhiTy (substTy subst rho)
-			    ; return (tyvars', theta, tau, subst) }
+			    ; return (tyvars', theta, tau) }
 
 tcSkolDFunType :: Type -> TcM ([TcTyVar], TcThetaType, TcType)
 -- Instantiate a type signature with skolem constants, but 
 -- do *not* give them fresh names, because we want the name to
 -- be in the type environment: it is lexically scoped.
 tcSkolDFunType ty
-  = do { (tvs, theta, rho, _) <- tcInstType (\tvs -> return (tcSuperSkolTyVars tvs)) ty
+  = do { (tvs, theta, rho) <- tcInstType (\tvs -> return (tcSuperSkolTyVars tvs)) ty
        ; return (tvs, theta, rho) }
 
 tcSuperSkolTyVars :: [TyVar] -> (TvSubst, [TcTyVar])
@@ -281,7 +281,7 @@ tcInstSkolType :: TcType -> TcM ([TcTyVar], TcThetaType, TcType)
 -- Instantiate a type with fresh skolem constants
 -- Binding location comes from the monad
 tcInstSkolType ty
-  = do { (tvs, theta, rho, _) <- tcInstType tcInstSkolTyVars ty
+  = do { (tvs, theta, rho) <- tcInstType tcInstSkolTyVars ty
        ; return (tvs, theta, rho) }
 
 newSigTyVar :: Name -> Kind -> TcM TcTyVar
