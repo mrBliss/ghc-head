@@ -537,7 +537,7 @@ tc_hs_type hs_ty@(HsTyLit (HsStrTy s)) exp_kind
 tc_hs_type HsWildcardTy (EK _ _) = panic "tc_hs_type HsWildcardTy"
   -- unnamed wildcards should have been removed in the renamer...
 
-tc_hs_type (HsNamedWildcardTy name) ek = panic "tc_hs_type HsNamedWildcardTy"
+tc_hs_type (HsNamedWildcardTy _) _ = panic "tc_hs_type HsNamedWildcardTy"
   -- named wildcards should have been replaced by type variables in the renamer...
 
 ---------------------------

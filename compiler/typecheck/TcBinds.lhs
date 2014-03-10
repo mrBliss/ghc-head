@@ -677,7 +677,7 @@ mkExport prag_fn qtvs theta subst (poly_name, mb_sig, mono_id)
         ; let wildcard_tvs'' = case mb_sig of Just sig -> tyVarsOfType (idType (sig_id sig)) `minusVarSet` gbl_tvs
                                               Nothing -> emptyVarSet
         ; wildcard_tvs' <- tyVarsOfTypes <$> mapM zonkTcTyVar (varSetElems wildcard_tvs'')
-        ; let wildcard_tvs = wildcard_tvs' `minusVarSet` gbl_tvs 
+        ; let wildcard_tvs = wildcard_tvs' `minusVarSet` gbl_tvs
                 -- don't quantify over wildcard variables from the global scope...
               init_tvs = tyVarsOfType mono_ty `unionVarSet` wildcard_tvs
               -- In the inference case (no signature) this stuff figures out
@@ -1338,10 +1338,6 @@ instTcTySig :: LHsType Name -> TcType    -- HsType and corresponding TcType
             -> Name -> TcM (TcSigInfo, TvSubst)
 instTcTySig hs_ty@(L loc _) sigma_ty extra name
   = do { (inst_tvs, theta, tau, subst) <- tcInstType tcInstSigTyVars sigma_ty
-       ; extraConstraints <- if extra
-                             then fmap Just (newFlexiTyVar constraintKind)
-                             else return Nothing
-
        ; return (TcSigInfo { sig_id = mkLocalId name sigma_ty
                            , sig_loc = loc
                            , sig_tvs = findScopedTyVars hs_ty sigma_ty inst_tvs
