@@ -2,10 +2,3 @@
 ExtraConstraintsWildcardNotPresent.hs:6:1:
     No instance for (Show a)
       arising from the inferred type of show' :: Show a => a -> _
-    The type variable ‘a’ is ambiguous
-    Note: there are several potential instances:
-      instance Show Double -- Defined in ‘GHC.Float’
-      instance Show Float -- Defined in ‘GHC.Float’
-      instance (Integral a, Show a) => Show (GHC.Real.Ratio a)
-        -- Defined in ‘GHC.Real’
-      ...plus 24 others
