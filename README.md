@@ -1,20 +1,22 @@
+[paper]: https://lirias.kuleuven.be/bitstream/123456789/423475/3/paper.pdf
+
 This is a fork of the GHC code base, in which we are working on an
 implementation of partial type signatures. Our proposed design is described in
-the paper _Partial Type Signatures for Haskell_ (Practical Aspects of
+the paper [_Partial Type Signatures for Haskell_][paper] (Practical Aspects of
 Declarative Languages 2014). This implementation is a work-in-progress.
 
 # Building #
 
 To try out the modified compiler, you have to build it. GHC upstream build
 instructions are available at
-[http://hackage.haskell.org/trac/ghc/wiki/Building][] and we recommend to
+http://hackage.haskell.org/trac/ghc/wiki/Building and we recommend to
 follow them. Here is a summarised version that should work (with Linux-style
 commands):
 
 1. Install required development tools like `hsc2hs`, `happy`, `gcc`, certain C
    development libraries, `automake`, `autoconf`, etc. See
-   http://hackage.haskell.org/trac/ghc/wiki/Building/Preparation. If you use
-   Debian or Ubuntu Linux, you can use the command `sudo apt-get build-dep
+   http://hackage.haskell.org/trac/ghc/wiki/Building/Preparation. If you
+   use Debian or Ubuntu Linux, you can use the command `sudo apt-get build-dep
    ghc6`.
 
         ...  # install all needed packages...
