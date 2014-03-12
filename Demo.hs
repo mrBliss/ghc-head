@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, GADTs, NamedWildcards #-}
+{-# LANGUAGE PartialTypeSignatures, RankNTypes, GADTs #-}
 module Demo where
 
 ------------------------------------------------------------------------------
@@ -83,14 +83,6 @@ v = let f :: _ -> _
 
 ------------------------------------------------------------------------------
 
--- Since we don't perform let-generalisation, the program below will
--- not typecheck.
--- w = let f :: _ -> _
---         f x = x
---     in (f True, f 'x')
-
-------------------------------------------------------------------------------
-
 -- In the following definition, generalisation occurs. The resulting type is:
 -- "forall a. a -> Bool".
 
@@ -99,23 +91,29 @@ alwaysTrue _ = True
 
 ------------------------------------------------------------------------------
 
--- The extra-constraints wildcard also isn't implemented, but the
--- parser already recognizes it correctly. The constraints (Eq a),
--- (Show a), and (Num a) that are generated while inferring the type,
--- are not yet added to the final type.
+-- The following example demonstrates the extra-constraints wildcard,
+-- which allows an arbitrary number of constraints to be generated.
+-- The constraints (Eq a), (Show a), and (Num a) that are generated
+-- while inferring the type, will be added to the type.
 
--- showSum :: _ => a -> a -> String
--- showSum x y = if x == y then show x else show (x + y)
+showSum :: _ => a -> a -> String
+-- showSum :: (Eq a, _) => a -> a -> String
+-- showSum :: (Eq a, Show a, Num a, _) => a -> a -> String
+showSum x y = if x == y then show x else show (x + y)
 
 
 ------------------------------------------------------------------------------
--- Named wildcards work...
+
+-- Named wildcards work.
+
 showTwo :: Show _a => _a -> String
 showTwo x = show x
 
 ------------------------------------------------------------------------------
 
+-- Named wildcards are currently scoped by default.
+
 test :: _a -> _a
-test x = let y :: (_a,_a)
-             y = (x,x)
+test x = let y :: (_a, _a)
+             y = (x, x)
          in True && x

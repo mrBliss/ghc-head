@@ -1,25 +1,13 @@
 This is a fork of the GHC code base, in which we are working on an
 implementation of partial type signatures. Our proposed design is described in
-a paper submitted to the Haskell Symposium. This implementation is
-unfortunately not (yet) complete. More specifically, it correctly unifies
-wildcards with closed types, but does not yet support unifying with open
-types, generalisation and extra-constraints wildcards. We intend to continue
-development to obtain a fully functional implementation and hopefully
-collaborate with upstream developers to make partial type signatures available
-as a GHC Haskell extension.
+the paper _Partial Type Signatures for Haskell_ (Practical Aspects of
+Declarative Languages 2014). This implementation is a work-in-progress.
 
-To inspect our modifications or try out the code, we recommend to
-clone the git repository:
-
-    git clone git://github.com/mrBliss/ghc.git
-
-You can use Git to produce a full diff of our modifications as follows:
-
-    git diff efb5e36ed56e768a66b0ef7c48219a01cb9b44e5
+# Building #
 
 To try out the modified compiler, you have to build it. GHC upstream build
 instructions are available at
-http://hackage.haskell.org/trac/ghc/wiki/Building and we recommend to
+[http://hackage.haskell.org/trac/ghc/wiki/Building][] and we recommend to
 follow them. Here is a summarised version that should work (with Linux-style
 commands):
 
@@ -31,32 +19,37 @@ commands):
 
         ...  # install all needed packages...
 
-2. Go to the directory where you have checked out the repository.
+2. Clone the main GHC repository:
+
+        git clone git://git.haskell.org/ghc.git
+
+3. Go to the directory where you have checked out the repository:
 
         cd ghc
 
 3. Check out (the correct versions of) sub-repositories (for Haskell libraries
    and tools):
 
-        ./sync-all -r http://darcs.haskell.org get
-        ./sync-all checkout ghc-7.6
+        ./sync-all get
 
-  But then switch the ghc repo back to the `partial-sigs` branch to get our
-  code.
+4. Add our fork as a git remote and fetch the code:
+
+        git remote add partial-sigs https://github.com/mrBliss/ghc-head.git
+        git fetch partial-sigs
+
+5. Check out our branch
 
         git checkout partial-sigs
 
-4. Build GHC. You can use for example `make -j4` instead of `make` to speed up
-   compilation on a multi-core computer. Note that the haddock build fails
-   because of some of our changes in GHC, so we disable it.
+6. Build GHC. You can use for example `make -j4` instead of `make` to speed up
+   compilation on a multi-core computer.
 
-        echo 'BuildFlavour = devel2' > mk/build.mk
-        echo 'HADDOCK_DOCS=NO' >> mk/build.mk
-        perl boot
-        ./configure
-        make
+        cp mk/build.mk.sample mk/build.mk
+        sed -i 's/#BuildFlavour = quick$/BuildFlavour = quick/' mk/build.mk
+        perl boot && ./configure
+        make -j4
 
-5. Play with the compiler. Be sure to look at the examples of partial type
+7. Play with the compiler. Be sure to look at the examples of partial type
    signatures in `Demo.hs`. To run the demo file, execute the following
    command from the base dir of your GHC checkout.
 
