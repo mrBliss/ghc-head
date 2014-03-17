@@ -90,8 +90,10 @@ import Control.Monad
 import Text.ParserCombinators.ReadP as ReadP
 import Data.Char
 
-import Data.Monoid     ( Monoid, mempty, mappend, mconcat )
 import Data.Data       ( dataTypeOf, fromConstr, dataTypeConstrs )
+import Data.List       ( partition )
+import qualified Data.Set as Set ( fromList , difference, member )
+
 
 #include "HsVersions.h"
 \end{code}
@@ -141,11 +143,11 @@ mkClassDecl loc (L _ (mcxt, tycl_hdr)) fds where_cls
 
 checkNoPartialSigs :: [LSig RdrName] -> Located RdrName -> P ()
 checkNoPartialSigs sigs cls_name =
-  sequence_ [ case loc of
-                Nothing  -> return ()
-                Just l -> parseErrorSDoc l $ err sig
+  sequence_ [ case mb_loc of
+                Nothing -> return ()
+                Just l  -> parseErrorSDoc l $ err sig
             | L sig_l sig@(TypeSig _ ty extra _) <- sigs
-            , let loc = location $ foundIf extra sig_l `mappend` containsWildcard ty ]
+            , let mb_loc = maybeLocation $ foundExtra extra sig_l ++ findWildcards ty ]
   where err sig =
           vcat [ptext (sLit "The type signature of a class method cannot be partial:"),
                 quotes (ppr sig),
@@ -153,71 +155,72 @@ checkNoPartialSigs sigs cls_name =
 
 checkNoPartialCon :: [LConDecl RdrName] -> P ()
 checkNoPartialCon con_decls =
-  sequence_ [ case loc of
+  sequence_ [ case mb_loc of
                 Nothing -> return ()
                 Just l -> parseErrorSDoc l $ err cd
             | L _ cd@(ConDecl { con_cxt = cxt, con_res = res, con_details = details }) <- con_decls
-            , let loc = location $ msome containsWildcard (unLoc cxt) `mappend`
-                                   containsWildcardRes res `mappend`
-                                   msome containsWildcard (hsConDeclArgTys details) ]
+            , let mb_loc = maybeLocation $ concatMap findWildcards (unLoc cxt) ++
+                                           containsWildcardRes res ++
+                                           concatMap findWildcards
+                                                     (hsConDeclArgTys details) ]
   where err con_decl = ptext (sLit "A constructor cannot have a partial type:") $$
                        quotes (ppr con_decl)
-        containsWildcardRes (ResTyGADT ty) = containsWildcard ty
+        containsWildcardRes (ResTyGADT ty) = findWildcards ty
         containsWildcardRes ResTyH98 = notFound
 
 checkNoPartialType :: SDoc -> LHsType RdrName -> P ()
 checkNoPartialType context_msg ty =
-  whenFound (containsWildcard ty) $ \loc -> parseErrorSDoc loc err
+  whenFound (findWildcards ty) $ \loc -> parseErrorSDoc loc err
   where err = ptext (sLit "Wildcard not allowed") $$ context_msg -- TODOT message
 
-newtype FoundWildcard = FW { location :: Maybe SrcSpan }
+data FoundWildcard = Found { location :: SrcSpan }
+                   | FoundNamed { location :: SrcSpan, name :: RdrName }
 
-notFound :: FoundWildcard
-notFound = FW Nothing
+notFound :: [FoundWildcard]
+notFound = []
 
-found :: SrcSpan -> FoundWildcard
-found = FW . Just
+foundExtra :: Bool -> SrcSpan -> [FoundWildcard]
+foundExtra True  loc = [Found loc]
+foundExtra False _   = notFound
 
-foundIf :: Bool -> SrcSpan -> FoundWildcard
-foundIf True  = found
-foundIf False = const notFound
+whenFound :: [FoundWildcard] -> (SrcSpan -> P ()) -> P ()
+whenFound (Found loc:_)        f = f loc
+whenFound (FoundNamed loc _:_) f = f loc
+whenFound _                    _ = return ()
 
-whenFound :: FoundWildcard -> (SrcSpan -> P ()) -> P ()
-whenFound (FW (Just loc)) f = f loc
-whenFound _               _ = return ()
+maybeLocation :: [FoundWildcard] -> Maybe SrcSpan
+maybeLocation fws = location `fmap` listToMaybe fws
 
-instance Monoid FoundWildcard where
-  mempty = FW Nothing
-  fw@(FW (Just _)) `mappend` _  = fw
-  (FW Nothing)     `mappend` fw = fw
+namedWildcards :: [FoundWildcard] -> [RdrName]
+namedWildcards fws = [name | FoundNamed _ name <- fws]
 
-msome :: Monoid m => (a -> m) -> [a] -> m
-msome f xs = mconcat (map f xs)
+splitUnnamedNamed :: [FoundWildcard] -> ([FoundWildcard], [FoundWildcard])
+splitUnnamedNamed = partition (\f -> case f of { Found _ -> True ; _ -> False})
 
-containsWildcard :: LHsType RdrName -> FoundWildcard
-containsWildcard (L l ty) = case ty of
-    (HsForAllTy _ _ (L _ ctxt) x) -> msome go ctxt `mappend` go x
-    (HsAppTy x y)                 -> go x `mappend` go y
-    (HsFunTy x y)                 -> go x `mappend` go y
+findWildcards :: LHsType RdrName -> [FoundWildcard]
+findWildcards (L l ty) = case ty of
+    (HsForAllTy _ _ (L _ ctxt) x) -> concatMap go ctxt ++ go x
+    (HsAppTy x y)                 -> go x ++ go y
+    (HsFunTy x y)                 -> go x ++ go y
     (HsListTy x)                  -> go x
     (HsPArrTy x)                  -> go x
-    (HsTupleTy _ xs)              -> msome go xs
-    (HsOpTy x _ y)                -> go x `mappend` go y
+    (HsTupleTy _ xs)              -> concatMap go xs
+    (HsOpTy x _ y)                -> go x ++ go y
     (HsParTy x)                   -> go x
     (HsIParamTy _ x)              -> go x
-    (HsEqTy x y)                  -> go x `mappend` go y
-    (HsKindSig x y)               -> go x `mappend` go y
+    (HsEqTy x y)                  -> go x ++ go y
+    (HsKindSig x y)               -> go x ++ go y
     (HsDocTy x _)                 -> go x
     (HsBangTy _ x)                -> go x
-    (HsRecTy xs)                  -> msome (go . getBangType . cd_fld_type) xs
-    (HsExplicitListTy _ xs)       -> msome go xs
-    (HsExplicitTupleTy _ xs)      -> msome go xs
+    (HsRecTy xs)                  -> concatMap (go . getBangType . cd_fld_type) xs
+    (HsExplicitListTy _ xs)       -> concatMap go xs
+    (HsExplicitTupleTy _ xs)      -> concatMap go xs
     (HsWrapTy _ x)                -> go (noLoc x)
-    HsWildcardTy                  -> found l
-    (HsNamedWildcardTy _)         -> found l
+    HsWildcardTy                  -> [Found l]
+    (HsNamedWildcardTy n)         -> [FoundNamed l n]
     -- HsTyVar, HsQuasiQuoteTy, HsSpliceTy, HsCoreTy, HsTyLit
     _                             -> notFound
-  where go = containsWildcard
+  where go = findWildcards
 
 mkTyData :: SrcSpan
          -> NewOrData
@@ -894,7 +897,7 @@ checkPartialTypeSignature fullTy = case fullTy of
   (L l (HsForAllTy flag bndrs (L lc ctxt) ty)) -> do
     -- Check that the type doesn't contain any more extra-constraints wildcards
     checkNoExtraConstraintsWildcard ty
-    -- Named constraint wildcards aren't allowed
+    -- Named extra-constraints wildcards aren't allowed
     when (any (isNamedWildcardTy . unLoc) ctxt) $ err hintNamed lc fullTy
     -- If there's an extra-constraints wildcard, remove it from the
     -- context and let extra be True
@@ -904,20 +907,44 @@ checkPartialTypeSignature fullTy = case fullTy of
           _ | otherwise -> (ctxt, False)
     -- After removing the extra-constraints wildcard at the end of the
     -- list, there should be no more left
-    if any (isWildcardTy . unLoc) rest
-      then err hintLast lc fullTy
-      else return (L l (HsForAllTy flag bndrs (L lc rest) ty), extra)
+    when (any (isWildcardTy . unLoc) rest) $ err hintLast lc fullTy
+    -- Find all wildcards in the context and the monotype, then divide
+    -- them in unnamed and named wildcards
+    let (unnamedInCtxt, namedInCtxt) = splitUnnamedNamed $ concatMap findWildcards rest
+        (_            , namedInTy)   = splitUnnamedNamed $ findWildcards ty
+    -- Unnamed wildcards aren't allowed in the context
+    case unnamedInCtxt of
+      (Found lc:_) -> err hintUnnamedConstraint lc fullTy
+      _            -> return ()
+    -- Calculcate the set of wildcards in the context that aren't in the monotype
+    let namedWildcardsNotInMonotype = Set.fromList (namedWildcards namedInCtxt)
+                                      `Set.difference`
+                                      Set.fromList (namedWildcards namedInTy)
+    -- Search for the first named wildcard that we encountered in the
+    -- context that isn't present in the monotype (we lose the order
+    -- in which they occur when using the Set directly).
+    case filter (\(FoundNamed _ name) -> Set.member name namedWildcardsNotInMonotype)
+                namedInCtxt of
+      (FoundNamed lc name:_) -> err' (hintNamedNotInMonotype name) lc fullTy
+      _                      -> return ()
+
+    -- Return the checked type
+    return (L l (HsForAllTy flag bndrs (L lc rest) ty), extra)
 
   ty -> do
     checkNoExtraConstraintsWildcard ty
     return (ty, False)
 
   where
-    err hint lc ty = parseErrorSDoc lc ((text "Invalid partial type signature:" <+> ppr ty)
-                                     $$ text hint)
+    err' hintSDoc lc ty = parseErrorSDoc lc ((text "Invalid partial type signature:" <+> ppr ty)
+                                     $$ hintSDoc)
+    err hintStr lc ty = err' (text hintStr) lc ty
     hintLast    = "An extra-constraints wildcard is only allowed at the end of the constraints"
     hintNamed   = "A named wildcard cannot occur as a constraint"
     hintNested  = "An extra-constraints wildcard is only allowed at the top-level of the signature"
+    hintUnnamedConstraint       = "Wildcards are not allowed within the constraints"
+    hintNamedNotInMonotype name = text "The named wildcard:" <+> ppr name <+>
+                                  text "is only allowed in the constraints when it also occurs in the (mono)type."
 
     checkNoExtraConstraintsWildcard (L lc ty) = go ty
       where
@@ -1187,7 +1214,7 @@ mkImport :: CCallConv
          -> (Located FastString, Located RdrName, LHsType RdrName)
          -> P (HsDecl RdrName)
 mkImport cconv safety (L loc entity, v, ty)
-  | Just loc <- location $ containsWildcard ty
+  | Just loc <- maybeLocation $ findWildcards ty
     = parseErrorSDoc loc $
       ptext (sLit "Wildcard not allowed") $$
       ptext (sLit "In foreign import declaration") <+> quotes (ppr v) $$

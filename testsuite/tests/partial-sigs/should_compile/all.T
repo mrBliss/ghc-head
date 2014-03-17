@@ -20,8 +20,6 @@ test('ExtraConstraints3', normal, compile, [''])
 # Type equalities can't yet be inferred as extra constraints
 test('ExtraTypeEquality', skip, compile, [''])
 test('Forall1', normal, compile, [''])
-# Constraint wildcard
-test('FstIsBool', skip, compile, [''])
 test('GenNamed', normal, compile, [''])
 test('HigherRank1', normal, compile, [''])
 test('HigherRank2', normal, compile, [''])
