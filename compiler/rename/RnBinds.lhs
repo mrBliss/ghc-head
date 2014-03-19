@@ -57,7 +57,7 @@ import Maybes		( orElse )
 import Util             ( filterOut )
 import Control.Monad
 import Data.Traversable ( traverse )
-import Data.List        ( nub )
+import Data.List        ( nubBy )
 \end{code}
 
 -- ToDo: Put the annotations into the monad, so that they arrive in the proper
@@ -750,16 +750,14 @@ renameSigs ctxt sigs
 
 -- Return the wildcards used in a type and transform unnamed wildcards
 -- to named wildcards with fresh names in the process.
-extractWildcards :: LHsType RdrName -> RnM ([RdrName], [Name], LHsType RdrName)
-extractWildcards (L loc ty) =
-  do (nwcs, awcs, ty') <- goNoLoc
-     return (nwcs, awcs, L loc ty')
+extractWildcards :: LHsType RdrName -> RnM ([Located RdrName], [Name], LHsType RdrName)
+extractWildcards = go
   where
-    goNoLoc = case ty of
+    go orig@(L l ty) = case ty of
       (HsForAllTy exp bndrs (L locCxt cxt) ty) ->
         do (nwcs1, awcs1, ty')  <- extractWildcards ty
            (nwcs2, awcs2, cxt') <- extList cxt
-           return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, HsForAllTy exp bndrs (L locCxt cxt') ty')
+           return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, L l (HsForAllTy exp bndrs (L locCxt cxt') ty'))
       (HsAppTy ty1 ty2)           -> go2 HsAppTy ty1 ty2
       (HsFunTy ty1 ty2)           -> go2 HsFunTy ty1 ty2
       (HsListTy ty)               -> go1 HsListTy ty
@@ -775,25 +773,24 @@ extractWildcards (L loc ty) =
       (HsExplicitListTy ptk tys)  -> goList (HsExplicitListTy ptk) tys
       (HsExplicitTupleTy ptk tys) -> goList (HsExplicitTupleTy ptk) tys
       HsWildcardTy -> do uniq <- newUnique
-                         loc <- getSrcSpanM
-                         let name = mkInternalName uniq (mkTyVarOcc "_") loc
-                         return ([], [name], HsTyVar (nameRdrName name))
-      (HsNamedWildcardTy name) -> return ([name], [], HsTyVar name)
+                         let name = mkInternalName uniq (mkTyVarOcc "_") l
+                         return ([], [name], L l $ HsTyVar (nameRdrName name))
+      (HsNamedWildcardTy name) -> return ([L l name], [], L l $ HsTyVar name)
       -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
-      _ -> return ([], [], ty)
-
-    go1 f t = do { (nwcs, awcs, t') <- extractWildcards t; return (nwcs, awcs, f t') }
-    go2 f t1 t2 =
-      do (nwcs1, awcs1, t1') <- extractWildcards t1
-         (nwcs2, awcs2, t2') <- extractWildcards t2
-         return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, f t1' t2')
-    extList l = do rec_res <- mapM extractWildcards l
-                   let (nwcs, awcs, tys') =
-                         foldr (\(nwcs, awcs, ty) (nwcss, awcss, tys) -> (nwcs ++ nwcss, awcs ++ awcss, ty : tys))
-                               ([], [], []) rec_res
-                   return (nwcs, awcs, tys')
-    goList f l = do (nwcs, awcs, l') <- extList l
-                    return (nwcs, awcs, f l')
+      _ -> return ([], [], orig)
+      where
+        go1 f t = do { (nwcs, awcs, t') <- extractWildcards t; return (nwcs, awcs, L l $ f t') }
+        go2 f t1 t2 =
+          do (nwcs1, awcs1, t1') <- extractWildcards t1
+             (nwcs2, awcs2, t2') <- extractWildcards t2
+             return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, L l $ f t1' t2')
+        extList l = do rec_res <- mapM extractWildcards l
+                       let (nwcs, awcs, tys') =
+                             foldr (\(nwcs, awcs, ty) (nwcss, awcss, tys) -> (nwcs ++ nwcss, awcs ++ awcss, ty : tys))
+                                   ([], [], []) rec_res
+                       return (nwcs, awcs, tys')
+        goList f tys = do (nwcs, awcs, tys') <- extList tys
+                          return (nwcs, awcs, L l $ f tys')
 
 ----------------------
 -- We use lookupSigOccRn in the signatures, which is a little bit unsatisfactory
@@ -817,10 +814,9 @@ renameSig ctxt sig@(TypeSig vs ty extra _)
         --   and transform unnamed wildcards to named ones with fresh names
         ; (nwcs, awcs, ty') <- extractWildcards ty
         ; rdr_env <- getLocalRdrEnv
-        ; let nwcs' = nub $ filterOut (flip elemLocalRdrEnv rdr_env) nwcs
-        ; loc <- getSrcSpanM
+        ; let nwcs' = nubBy eqLocated $ filterOut (flip (elemLocalRdrEnv . unLoc) rdr_env) nwcs
         ; bindLocalNamesFV awcs $
-          bindLocatedLocalsFV (map (L loc) nwcs') $ \nwcs_new -> do {
+          bindLocatedLocalsFV nwcs' $ \nwcs_new -> do {
           (new_ty, fvs) <- rnHsSigType (ppr_sig_bndrs vs) ty'
         ; return (TypeSig new_vs new_ty extra (nwcs_new ++ awcs), fvs) } }
 
