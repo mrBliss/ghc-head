@@ -640,8 +640,7 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                               newTcEvBinds
        ; (qtvs, givens, mr_bites) <-
                           simplifyInfer2 closed mono extra  [name_tau] wanted ev_binds_var
-       ; when (givens /= [] && not extra) $ do
-           return () -- TODO report error somehow?
+       ; when (givens /= [] && not extra) $ return () -- TODO report error somehow?
        ; gbl_tvs <- tcGetGlobalTyVars
        ; q_sig_tvs <- quantifyTyVars gbl_tvs (extendVarSetList emptyVarSet (map snd sig_tvs))
        ; inferred_theta <- zonkTcThetaType (sig_theta ++ map evVarPred givens)
@@ -1419,7 +1418,8 @@ tcTySig (L loc (TypeSig names@(L _ name1 : _) hs_ty extra wcs))
     do { nwc_tvs <- mapM newWildcardVarMetaKind wcs
        ; sigma_ty <- tcExtendTyVarEnv nwc_tvs $ tcHsSigType (FunSigCtxt name1) hs_ty
        ; sigs <- mapM (instTcTySig hs_ty sigma_ty extra) (map unLoc names)
-       ; let sigs' = map (\sig -> sig { sig_nwcs = zipWith ((,) . Just) wcs nwc_tvs }) sigs
+       ; let sigs' = [ sig { sig_nwcs = zipWith ((,) . Just) wcs nwc_tvs }
+                     | sig <- sigs ]
        ; return (sigs', nwc_tvs) }
 tcTySig _ = return ([], [])
 

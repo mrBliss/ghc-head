@@ -63,7 +63,7 @@ module TcMType (
 
   --------------------------------
   -- (Named) Wildcards
-  newWildcardVar, newWildcardTy, newWildcardVarMetaKind,
+  newWildcardVar, newWildcardVarMetaKind,
   isWildcardVar, isWildcardTy,
   containsWildcards
 
@@ -1022,11 +1022,6 @@ newWildcardVar name kind = newNamedMetaTyVar name (TauTv True) kind
 newWildcardVarMetaKind :: Name -> TcM TcTyVar
 newWildcardVarMetaKind name = do kind <- newMetaKindVar
                                  newWildcardVar name kind
-
-newWildcardTy  :: Name -> Kind -> TcM TcType
-newWildcardTy name kind = do
-    tc_tyvar <- newWildcardVar name kind
-    return (TyVarTy tc_tyvar)
 
 isWildcardVar :: TcTyVar -> Bool
 isWildcardVar tv | isTcTyVar tv, MetaTv (TauTv True) _ _ <- tcTyVarDetails tv = True
