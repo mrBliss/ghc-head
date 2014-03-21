@@ -53,6 +53,7 @@ import Util
 import Outputable
 import FastString
 import Control.Monad
+import Maybes( isJust )
 \end{code}
 
 
@@ -156,10 +157,9 @@ data TcSigInfo
 
         sig_theta  :: TcThetaType,  -- Instantiated theta
 
-        sig_extra  :: Bool,          -- A metavariable that will unify
-                                     -- with the extra constraints
-                                     -- inferred during generalisation
-                                     -- See Note [Partial type signatures] TODOT write
+        sig_extra  :: Maybe SrcSpan, -- Indicates whether extra constraints may be
+                                     -- inferred. When Nothing, no, otherise the location
+                                     -- of the extra-cosntraints wildcard is stored.
 
         sig_tau    :: TcSigmaType,  -- Instantiated tau
 		      		    -- See Note [sig_tau may be polymorphic]
@@ -192,7 +192,7 @@ instance Outputable TcSigInfo where
 
 isPartialSig :: TcSigInfo -> Bool
 isPartialSig (TcSigInfo { sig_theta = theta, sig_extra = extra, sig_tau = tau, sig_tvs = sig_tvs })
-  = any containsWildcards theta || any (isWildcardVar . snd) sig_tvs || extra || containsWildcards tau
+  = any containsWildcards theta || any (isWildcardVar . snd) sig_tvs || isJust extra || containsWildcards tau
 \end{code}
 
 Note [Binding scoped type variables]

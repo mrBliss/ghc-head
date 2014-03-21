@@ -611,6 +611,7 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
   -- TODOT clean up after implementing the extra-constraints wildcard
   = do { ev_vars <- newEvVars sig_theta
        ; let skol_info = SigSkol (FunSigCtxt (idName sig_poly_id)) (mkPhiTy sig_theta sig_tau)
+       ; let extra = isJust sig_extra
        -- ; tvs <- mapM (skolemiseSigTv . snd) tvs_w_scoped
        ; ((ev_binds, (binds', [mono_info])), wanted)
              <- captureConstraints $
@@ -625,8 +626,8 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                EvBinds bag -> ASSERT (isEmptyBag bag)
                               newTcEvBinds
        ; (qtvs, givens, mr_bites) <-
-                          simplifyInfer2 closed mono sig_extra [name_tau] wanted ev_binds_var
-       ; when (givens /= [] && not sig_extra) $ do
+                          simplifyInfer2 closed mono extra  [name_tau] wanted ev_binds_var
+       ; when (givens /= [] && not extra) $ do
            return () -- TODO report error somehow?
        ; gbl_tvs <- tcGetGlobalTyVars
        ; q_sig_tvs <- quantifyTyVars gbl_tvs (extendVarSetList emptyVarSet (map snd sig_tvs))
@@ -1321,14 +1322,14 @@ instTcTySigFromId loc id
                            , sig_tvs = [(Nothing, tv) | tv <- tvs]
                            , sig_nwcs = []
                            , sig_theta = theta, sig_tau = tau
-                           , sig_extra = False }) }
+                           , sig_extra = Nothing }) }
     -- Hack: in an instance decl we use the selector id as
     -- the template; but we do *not* want the SrcSpan on the Name of
     -- those type variables to refer to the class decl, rather to
     -- the instance decl
 
 instTcTySig :: LHsType Name -> TcType    -- HsType and corresponding TcType
-            -> Bool                      -- Extra-constraints wildcard present
+            -> Maybe SrcSpan             -- Extra-constraints wildcard present
             -> Name -> TcM TcSigInfo
 instTcTySig hs_ty@(L loc _) sigma_ty extra name
   = do { (inst_tvs, theta, tau) <- tcInstType tcInstSigTyVars sigma_ty

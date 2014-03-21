@@ -835,7 +835,7 @@ decl_cls  : at_decl_cls                 { LL (unitOL $1) }
 
           -- A 'default' signature used with the generic-programming extension
           | 'default' infixexp '::' sigtypedoc
-                    {% do { (TypeSig l ty extra wcs) <- checkValSig $2 $4 False -- TODO disallow wildcards
+                    {% do { (TypeSig l ty extra wcs) <- checkValSig $2 $4 Nothing
                           ; return (LL $ unitOL (LL $ SigD (GenericSig l ty))) } }
 
 decls_cls :: { Located (OrdList (LHsDecl RdrName)) }    -- Reversed

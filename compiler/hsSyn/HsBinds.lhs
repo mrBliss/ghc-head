@@ -540,11 +540,13 @@ type LSig name = Located (Sig name)
 data Sig name   
   =   -- | An ordinary type signature
       -- @f :: Num a => a -> a@
-      -- The Bool indicates the presence of an extra-constraints
-      -- wildcard, e.g. @f :: (Num a, _) => a -> a@
+      -- The Maybe SrcSpan indicates the presence of
+      -- an extra-constraints wildcard,
+      -- e.g. @f :: (Num a, _) => a -> a@.
+      -- It is present iff its location is stored.
       -- After renaming, the list of names contains the named
       -- and unnamed wildcards brought in scope by this signature
-    TypeSig [Located name] (LHsType name) Bool [name]
+    TypeSig [Located name] (LHsType name) (Maybe SrcSpan) [name]
 
       -- | A pattern synonym type signature
       -- @pattern (Eq b) => P a b :: (Num a) => T a
@@ -704,9 +706,8 @@ ppr_sig (TypeSig vars ty extra _wcs) = pprVarSig (map unLoc vars) $ ppr (reintro
   where -- Temporarily add back the extra-constraints wildcard (if
         -- extra is True) to the type, just for pretty-printing
     reintroExtraCtsWc (L l (HsForAllTy f b ctxt t))
-      | extra = (L l (HsForAllTy f b (fmap (++ [L l HsWildcardTy]) ctxt) t))
+      | Just _ <- extra = L l (HsForAllTy f b (fmap (++ [L l HsWildcardTy]) ctxt) t)
     reintroExtraCtsWc t = t
-    reintroExtraCtsWc :: OutputableBndr name => LHsType name -> LHsType name
 
 ppr_sig (GenericSig vars ty)      = ptext (sLit "default") <+> pprVarSig (map unLoc vars) (ppr ty)
 ppr_sig (IdSig id)                = pprVarSig [id] (ppr (varType id))

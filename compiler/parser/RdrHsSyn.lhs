@@ -146,8 +146,8 @@ checkNoPartialSigs sigs cls_name =
   sequence_ [ case mb_loc of
                 Nothing -> return ()
                 Just l  -> parseErrorSDoc l $ err sig
-            | L sig_l sig@(TypeSig _ ty extra _) <- sigs
-            , let mb_loc = maybeLocation $ foundExtra extra sig_l ++ findWildcards ty ]
+            | L _ sig@(TypeSig _ ty extra _) <- sigs
+            , let mb_loc = maybeLocation $ foundExtra extra ++ findWildcards ty ]
   where err sig =
           vcat [ptext (sLit "The type signature of a class method cannot be partial:"),
                 quotes (ppr sig),
@@ -179,9 +179,9 @@ data FoundWildcard = Found { location :: SrcSpan }
 notFound :: [FoundWildcard]
 notFound = []
 
-foundExtra :: Bool -> SrcSpan -> [FoundWildcard]
-foundExtra True  loc = [Found loc]
-foundExtra False _   = notFound
+foundExtra :: Maybe SrcSpan -> [FoundWildcard]
+foundExtra (Just loc) = [Found loc]
+foundExtra Nothing    = notFound
 
 whenFound :: [FoundWildcard] -> (SrcSpan -> P ()) -> P ()
 whenFound (Found loc:_)        f = f loc
@@ -856,7 +856,7 @@ checkPatBind msg lhs (L _ grhss)
 checkValSig
         :: LHsExpr RdrName
         -> LHsType RdrName
-        -> Bool
+        -> Maybe SrcSpan
         -> P (Sig RdrName)
 checkValSig (L l (HsVar v)) ty extra
   | isUnqual v && not (isDataOcc (rdrNameOcc v))
@@ -891,7 +891,7 @@ isNamedWildcardTy :: HsType a -> Bool
 isNamedWildcardTy (HsNamedWildcardTy _) = True
 isNamedWildcardTy _ = False
 
-checkPartialTypeSignature :: LHsType RdrName -> P (LHsType RdrName, Bool)
+checkPartialTypeSignature :: LHsType RdrName -> P (LHsType RdrName, Maybe SrcSpan)
 checkPartialTypeSignature fullTy = case fullTy of
 
   (L l (HsForAllTy flag bndrs (L lc ctxt) ty)) -> do
@@ -900,11 +900,11 @@ checkPartialTypeSignature fullTy = case fullTy of
     -- Named extra-constraints wildcards aren't allowed
     when (any (isNamedWildcardTy . unLoc) ctxt) $ err hintNamed lc fullTy
     -- If there's an extra-constraints wildcard, remove it from the
-    -- context and let extra be True
+    -- context and let extra be its location
     let (rest, extra) = case () of
-          _ | null ctxt -> ([], False)
-          _ | isWildcardTy $ unLoc (last ctxt) -> (init ctxt, True)
-          _ | otherwise -> (ctxt, False)
+          _ | null ctxt -> ([], Nothing)
+          _ | isWildcardTy $ unLoc (last ctxt) -> (init ctxt, Just $ getLoc (last ctxt))
+          _ | otherwise -> (ctxt, Nothing)
     -- After removing the extra-constraints wildcard at the end of the
     -- list, there should be no more left
     when (any (isWildcardTy . unLoc) rest) $ err hintLast lc fullTy
@@ -933,7 +933,7 @@ checkPartialTypeSignature fullTy = case fullTy of
 
   ty -> do
     checkNoExtraConstraintsWildcard ty
-    return (ty, False)
+    return (ty, Nothing)
 
   where
     err' hintSDoc lc ty = parseErrorSDoc lc ((text "Invalid partial type signature:" <+> ppr ty)
