@@ -60,6 +60,7 @@ import TcValidity (checkValidTheta)
 
 import Control.Monad
 
+import Data.List(nub)
 #include "HsVersions.h"
 \end{code}
 
@@ -635,13 +636,13 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
        ; traceTc "tcPolyCombi: " (ppr ev_binds $$
                                   ppr inferred_theta $$
                                   ppr qtvs)
-       ; export <- checkNoErrs $ mkExport prag_fn (q_sig_tvs ++ qtvs) inferred_theta mono_info
+       ; export <- checkNoErrs $ mkExport prag_fn (nub (q_sig_tvs ++ qtvs)) inferred_theta mono_info
        ; loc <- getSrcSpanM
        ; let poly_id = abe_poly export
              final_closed | closed && not mr_bites = TopLevel
                           | otherwise              = NotTopLevel
              abs_bind = L loc $
-                        AbsBinds { abs_tvs = q_sig_tvs ++ qtvs
+                        AbsBinds { abs_tvs = nub (q_sig_tvs ++ qtvs)
                                  , abs_ev_vars = ev_vars ++ givens, abs_ev_binds = TcEvBinds ev_binds_var
                                  , abs_exports = [export], abs_binds = binds' }
 
