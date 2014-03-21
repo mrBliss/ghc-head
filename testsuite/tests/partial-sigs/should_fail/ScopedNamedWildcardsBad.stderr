@@ -1,4 +1,12 @@
 
+ScopedNamedWildcardsBad.hs:7:10:
+    Instantiated wildcard ‘_a’ to: (t, t1)
+      in the type signature for test2 :: _a -> _a
+      at ScopedNamedWildcardsBad.hs:7:10-17
+    The complete inferred type is:
+      test2 :: forall t t1. (t, t1) -> (t, t1)
+    To use the inferred type, enable PartialTypeSignatures
+
 ScopedNamedWildcardsBad.hs:9:20:
     Occurs check: cannot construct the infinite type: t ~ (t, t1)
     Relevant bindings include

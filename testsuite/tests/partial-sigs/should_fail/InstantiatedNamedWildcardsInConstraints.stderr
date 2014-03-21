@@ -1,0 +1,17 @@
+
+InstantiatedNamedWildcardsInConstraints.hs:4:18:
+    Instantiated extra-constraints wildcard ‘_’ to:
+      (Show b)
+      in the type signature for foo :: (Enum _a, _) => _a -> (String, b)
+      at InstantiatedNamedWildcardsInConstraints.hs:4:8-40
+    The complete inferred type is:
+      foo :: forall b. (Enum b, Show b) => b -> (String, b)
+    To use the inferred type, enable PartialTypeSignatures
+
+InstantiatedNamedWildcardsInConstraints.hs:4:24:
+    Instantiated wildcard ‘_a’ to: b
+      in the type signature for foo :: (Enum _a, _) => _a -> (String, b)
+      at InstantiatedNamedWildcardsInConstraints.hs:4:8-40
+    The complete inferred type is:
+      foo :: forall b. (Enum b, Show b) => b -> (String, b)
+    To use the inferred type, enable PartialTypeSignatures

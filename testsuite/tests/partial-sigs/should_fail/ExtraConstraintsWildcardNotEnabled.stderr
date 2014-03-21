@@ -1,3 +1,9 @@
 
 ExtraConstraintsWildcardNotEnabled.hs:4:10:
-    Wildcards in type signatures need PartialTypeSignatures turned on
+    Instantiated extra-constraints wildcard ‘_’ to:
+      (Show a)
+      in the type signature for show' :: (_) => a -> String
+      at ExtraConstraintsWildcardNotEnabled.hs:4:10-25
+    The complete inferred type is:
+      show' :: forall a. Show a => a -> String
+    To use the inferred type, enable PartialTypeSignatures

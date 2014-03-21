@@ -1,0 +1,49 @@
+
+WildcardInstantiations.hs:5:18:
+    Instantiated extra-constraints wildcard ‘_’ to:
+      (Enum tw_a)
+      in the type signature for foo :: (Show _a, _) => _a -> _
+      at WildcardInstantiations.hs:5:8-30
+    The complete inferred type is:
+      foo :: forall tw_a. (Show tw_a, Enum tw_a) => tw_a -> String
+    To use the inferred type, enable PartialTypeSignatures
+
+WildcardInstantiations.hs:5:24:
+    Instantiated wildcard ‘_a’ to: tw_a
+      in the type signature for foo :: (Show _a, _) => _a -> _
+      at WildcardInstantiations.hs:5:8-30
+    The complete inferred type is:
+      foo :: forall tw_a. (Show tw_a, Enum tw_a) => tw_a -> String
+    To use the inferred type, enable PartialTypeSignatures
+
+WildcardInstantiations.hs:5:30:
+    Instantiated wildcard ‘_’ to: String
+      in the type signature for foo :: (Show _a, _) => _a -> _
+      at WildcardInstantiations.hs:5:8-30
+    The complete inferred type is:
+      foo :: forall tw_a. (Show tw_a, Enum tw_a) => tw_a -> String
+    To use the inferred type, enable PartialTypeSignatures
+
+WildcardInstantiations.hs:8:8:
+    Instantiated wildcard ‘_’ to: tw_
+      in the type signature for bar :: _ -> _ -> _
+      at WildcardInstantiations.hs:8:8-18
+    The complete inferred type is:
+      bar :: forall tw_ tw_1. tw_ -> (tw_ -> tw_1) -> tw_1
+    To use the inferred type, enable PartialTypeSignatures
+
+WildcardInstantiations.hs:8:13:
+    Instantiated wildcard ‘_’ to: tw_ -> tw_1
+      in the type signature for bar :: _ -> _ -> _
+      at WildcardInstantiations.hs:8:8-18
+    The complete inferred type is:
+      bar :: forall tw_ tw_1. tw_ -> (tw_ -> tw_1) -> tw_1
+    To use the inferred type, enable PartialTypeSignatures
+
+WildcardInstantiations.hs:8:18:
+    Instantiated wildcard ‘_’ to: tw_1
+      in the type signature for bar :: _ -> _ -> _
+      at WildcardInstantiations.hs:8:8-18
+    The complete inferred type is:
+      bar :: forall tw_ tw_1. tw_ -> (tw_ -> tw_1) -> tw_1
+    To use the inferred type, enable PartialTypeSignatures

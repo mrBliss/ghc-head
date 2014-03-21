@@ -134,6 +134,7 @@ module Type (
         pprKind, pprParendKind, pprSourceTyCon,
 
         -- * Tidying type related things up for printing
+        TidyEnv,
         tidyType,      tidyTypes,
         tidyOpenType,  tidyOpenTypes,
         tidyOpenKind,

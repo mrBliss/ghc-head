@@ -1,3 +1,0 @@
-
-PartialTypeSignaturesEnabled.hs:4:8:
-    Wildcards in type signatures need PartialTypeSignatures turned on

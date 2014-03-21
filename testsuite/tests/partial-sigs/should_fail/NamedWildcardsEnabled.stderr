@@ -1,0 +1,14 @@
+
+NamedWildcardsEnabled.hs:4:8:
+    Instantiated wildcard ‘_a’ to: Bool
+      in the type signature for foo :: _a -> _b
+      at NamedWildcardsEnabled.hs:4:8-15
+    The complete inferred type is: foo :: Bool -> Bool
+    To use the inferred type, enable PartialTypeSignatures
+
+NamedWildcardsEnabled.hs:4:14:
+    Instantiated wildcard ‘_b’ to: Bool
+      in the type signature for foo :: _a -> _b
+      at NamedWildcardsEnabled.hs:4:8-15
+    The complete inferred type is: foo :: Bool -> Bool
+    To use the inferred type, enable PartialTypeSignatures

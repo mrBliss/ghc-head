@@ -31,7 +31,7 @@ import TcPat
 import TcMType
 import PatSyn
 import ConLike
-import Type( tidyOpenType )
+import Type( tidyOpenType, tidyOpenTypes, TidyEnv )
 import FunDeps( growThetaTyVars )
 import TyCon
 import TcType
@@ -57,10 +57,11 @@ import Type(mkStrLitTy)
 import Class(classTyCon)
 import PrelNames(ipClassName)
 import TcValidity (checkValidTheta)
+import VarEnv(mkVarEnv, emptyInScopeSet)
 
 import Control.Monad
+import Data.List(deleteFirstsBy, nub, mapAccumL)
 
-import Data.List(nub)
 #include "HsVersions.h"
 \end{code}
 
@@ -611,8 +612,19 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                                           }) bind mono closed
   -- TODOT clean up after implementing the extra-constraints wildcard
   = do { ev_vars <- newEvVars sig_theta
-       ; let skol_info = SigSkol (FunSigCtxt (idName sig_poly_id)) (mkPhiTy sig_theta sig_tau)
        ; let extra = isJust sig_extra
+       ; print_theta <- case sig_extra of
+                          Nothing  -> return sig_theta
+                          -- To print the extra-constraints wildcard, we make
+                          -- a new wildcard and add it to the end of theta.
+                          Just loc -> do
+                            { uniq <- newUnique
+                            ; let name = mkInternalName uniq (mkTyVarOcc "_") loc
+                            ; extra_cts_wc <- newWildcardVar name constraintKind
+                            ; return $ sig_theta ++ [mkTyVarTy extra_cts_wc] }
+       ; let skol_info = SigSkol (FunSigCtxt (idName sig_poly_id))
+                                 (mkPhiTy print_theta sig_tau)
+
        -- ; tvs <- mapM (skolemiseSigTv . snd) tvs_w_scoped
        ; ((ev_binds, (binds', [mono_info])), wanted)
              <- captureConstraints $
@@ -648,8 +660,104 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
 
        ; traceTc "Binding:" (ppr final_closed $$
                              ppr (poly_id, idType poly_id))
+       ; tidy_env <- tcInitTidyEnv
+       ; let (tidy_env', tidy_poly_ty) = tidyOpenType tidy_env (idType poly_id)
+       ; reportInstantiatedWildcards sig tidy_poly_ty skol_info tidy_env'
        ; return (unitBag abs_bind, [poly_id], final_closed) }
          -- poly_id is guaranteed to be zonked by mkExport
+
+
+reportInstantiatedWildcards :: TcSigInfo -> Type -> SkolemInfo -> TidyEnv -> TcM ()
+reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id, sig_nwcs = nwcs,
+                                         sig_extra = extra, sig_theta = theta })
+                            inf_ty skol_info tidy_env
+  = do { dflags <- getDynFlags
+       -- By default, we report errors for wildcard instantiations in
+       -- partial type signatures, unless the PartialTypeSignatures
+       -- extension is on, in which case we accept the inferred types
+       -- and just add the instantiations to the trace.
+       ; let (report, reportExtra) =
+               case xopt Opt_PartialTypeSignatures dflags of
+                 True  -> (reportTrace, reportExtraTrace)
+                 False -> (reportErr,   reportExtraErr)
+       -- nwcs contains all the wildcards, both named and unnamed. The
+       -- latter were given a dummy name. We find all the
+       -- instantiations by looking at the types the wildcards (metas)
+       -- were unified with. We also 'tidy' the types found, so our
+       -- messages will contain types like 'forall tw_ tw_1 . ...'
+       -- instead of 'forall tw_ tw_ . ...' (notice the '1'). The
+       -- tidy_env will be threaded through the rest of this function.
+       ; (tidy_env', instantiations) <- fmap (tidy tidy_env) $
+                                        forM nwcs $ \(_, tv) -> do
+         { details <- readMutVar (metaTvRef tv)
+         ; case details of
+             Flexi       -> pprPanic "Free meta variable found" $ ppr tv
+             Indirect ty -> do { zonkedTy <- zonkTcType ty
+                               ; return (tv, zonkedTy) } }
+       ; mapM_ (uncurry report) instantiations
+       -- Make a substitution of all (named) wildcards that were
+       -- instantiated to type variables
+       ; let subst = mkTvSubst emptyInScopeSet $
+                     mkVarEnv [ i | i@(_, ty) <- instantiations
+                                  , isTyVarTy ty ]
+       -- This substitution must be applied to the theta with holes
+       -- before comparing it with the theta without holes, as named
+       -- wildcards can be instantiated to type variables (the unnamed
+       -- wildcards in the substitution are ignored). Example:
+       --   foo :: (Enum _a, _) => _a -> (String, b)
+       --   foo x = (show (succ x), x)
+       -- Inferred: forall b. (Enum b, Show b) => b -> (String, b)
+       -- Without applying the subst, we would report (Enum b, Show b)
+       -- as extra constraints that were instantiated.
+       -- With the subst applied, we just report (Show b), as intended.
+       ; case extra of
+           Nothing  -> return ()
+           Just loc -> let extras = deleteFirstsBy tcEqType inf_theta
+                                                   (substTheta subst theta)
+                           (_, tidyExtras) = tidyOpenTypes tidy_env' extras
+                       in reportExtra tidyExtras loc }
+    where
+      -- Tidy just the types, not the tyvars
+      tidy tidy_env tvtys = mapAccumL tidyTvTy tidy_env tvtys
+      tidyTvTy env (tv, ty) = let (env', ty') = tidyOpenType env ty
+                              in (env', (tv, ty'))
+
+      (_, inf_theta, _) = tcSplitSigmaTy inf_ty
+
+      completeTy = hang (ptext (sLit "The complete inferred type is:"))
+                   2 (pprPrefixOcc id <+> dcolon <+> ppr inf_ty)
+
+      hintEnable = ptext (sLit "To use the inferred type,") <+>
+                   ptext (sLit "enable PartialTypeSignatures")
+
+      msgInstantiated tv ty = hang (ptext (sLit "Instantiated wildcard") <+>
+                                    quotes (ppr tv) <+> ptext (sLit "to:") <+> ppr ty)
+                              2 (vcat [ ptext (sLit "in") <+> ppr skol_info
+                                      , ptext (sLit "at") <+> ppr loc])
+
+      msgExtra extra_cts = hang (ptext (sLit "Instantiated extra-constraints wildcard") <+>
+                                 quotes (char '_') <+> ptext (sLit "to:"))
+                           2 (vcat [ pprTheta extra_cts
+                                   , ptext (sLit "in") <+> ppr skol_info
+                                   , ptext (sLit "at") <+> ppr loc])
+
+      reportErr tv ty =
+        do { let msg = msgInstantiated tv ty $$ completeTy $$ hintEnable
+           ; err <- mkLongErrAt (getSrcSpan tv) msg empty
+           ; reportError err }
+
+      reportTrace tv ty =
+        do { let msg = msgInstantiated tv ty $$ completeTy
+           ; traceTc "" msg }
+
+      reportExtraErr extra_cts loc =
+        do { let msg = msgExtra extra_cts $$ completeTy $$ hintEnable
+           ; err <- mkLongErrAt loc msg empty
+           ; reportError err }
+
+      reportExtraTrace extra_cts _ =
+        do { let msg = msgExtra extra_cts $$ completeTy
+           ; traceTc "" msg }
 
 --------------
 mkExport :: PragFun
