@@ -2,4 +2,4 @@
 WildcardInForeignImport.hs:6:48:
     Wildcard not allowed
     In foreign import declaration ‘c_sin’
-    ‘CDouble -> _’
+    CDouble -> _

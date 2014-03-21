@@ -2,4 +2,4 @@
 WildcardInForeignExport.hs:6:37:
     Wildcard not allowed
     In foreign export declaration ‘foo’
-    ‘CInt -> _’
+    CInt -> _

@@ -149,9 +149,9 @@ checkNoPartialSigs sigs cls_name =
             | L _ sig@(TypeSig _ ty extra _) <- sigs
             , let mb_loc = maybeLocation $ foundExtra extra ++ findWildcards ty ]
   where err sig =
-          vcat [ptext (sLit "The type signature of a class method cannot be partial:"),
-                quotes (ppr sig),
-                (ptext (sLit "In the class declaration for ")) <> quotes (ppr cls_name)]
+          vcat [ ptext (sLit "The type signature of a class method cannot be partial:")
+               , ppr sig
+               , (ptext (sLit "In the class declaration for ")) <> quotes (ppr cls_name) ]
 
 checkNoPartialCon :: [LConDecl RdrName] -> P ()
 checkNoPartialCon con_decls =
@@ -164,7 +164,7 @@ checkNoPartialCon con_decls =
                                            concatMap findWildcards
                                                      (hsConDeclArgTys details) ]
   where err con_decl = ptext (sLit "A constructor cannot have a partial type:") $$
-                       quotes (ppr con_decl)
+                       ppr con_decl
         containsWildcardRes (ResTyGADT ty) = findWildcards ty
         containsWildcardRes ResTyH98 = notFound
 
@@ -269,7 +269,7 @@ mkTySynonym loc lhs rhs
   = do { (tc, tparams) <- checkTyClHdr lhs
        ; tyvars <- checkTyVars (ptext (sLit "type")) equalsDots tc tparams
        ; let err = ptext (sLit "In type synonym") <+> quotes (ppr tc) <>
-                   colon <+> quotes (ppr rhs)
+                   colon <+> ppr rhs
        ; checkNoPartialType err rhs
        ; return (L loc (SynDecl { tcdLName = tc, tcdTyVars = tyvars
                                 , tcdRhs = rhs, tcdFVs = placeHolderNames })) }
@@ -279,8 +279,9 @@ mkTyFamInstEqn :: LHsType RdrName
                -> P (TyFamInstEqn RdrName)
 mkTyFamInstEqn lhs rhs
   = do { (tc, tparams) <- checkTyClHdr lhs
-       ; let err xhs = ptext (sLit "In type family instance equation of") <+>
-                       quotes (ppr tc) <> colon $$ ppr xhs
+       ; let err xhs = hang (ptext (sLit "In type family instance equation of") <+>
+                              quotes (ppr tc) <> colon)
+                       2 (ppr xhs)
        ; checkNoPartialType (err lhs) lhs
        ; checkNoPartialType (err rhs) rhs
        ; return (TyFamInstEqn { tfie_tycon = tc
@@ -925,7 +926,7 @@ checkPartialTypeSignature fullTy = case fullTy of
     -- in which they occur when using the Set directly).
     case filter (\(FoundNamed _ name) -> Set.member name namedWildcardsNotInMonotype)
                 namedInCtxt of
-      (FoundNamed lc name:_) -> err' (hintNamedNotInMonotype name) lc fullTy
+      (FoundNamed lc name:_) -> err (hintNamedNotInMonotype name) lc fullTy
       _                      -> return ()
 
     -- Return the checked type
@@ -936,15 +937,20 @@ checkPartialTypeSignature fullTy = case fullTy of
     return (ty, Nothing)
 
   where
-    err' hintSDoc lc ty = parseErrorSDoc lc ((text "Invalid partial type signature:" <+> ppr ty)
-                                     $$ hintSDoc)
-    err hintStr lc ty = err' (text hintStr) lc ty
-    hintLast    = "An extra-constraints wildcard is only allowed at the end of the constraints"
-    hintNamed   = "A named wildcard cannot occur as a constraint"
-    hintNested  = "An extra-constraints wildcard is only allowed at the top-level of the signature"
-    hintUnnamedConstraint       = "Wildcards are not allowed within the constraints"
-    hintNamedNotInMonotype name = text "The named wildcard:" <+> ppr name <+>
-                                  text "is only allowed in the constraints when it also occurs in the (mono)type."
+    err hintSDoc lc ty = parseErrorSDoc lc $
+                         ptext (sLit "Invalid partial type signature:") $$
+                         ppr ty $$ hintSDoc
+    hintLast    = sep [ ptext (sLit "An extra-constraints wildcard is only allowed")
+                      , ptext (sLit "at the end of the constraints") ]
+    hintNamed   = ptext (sLit "A named wildcard cannot occur as a constraint")
+    hintNested  = sep [ ptext (sLit "An extra-constraints wildcard is only allowed")
+                      , ptext (sLit "at the top-level of the signature") ]
+    hintUnnamedConstraint
+      = ptext (sLit "Wildcards are not allowed within the constraints")
+    hintNamedNotInMonotype name
+      = sep [ ptext (sLit "The named wildcard") <+> quotes (ppr name) <+>
+              ptext (sLit "is only allowed in the constraints")
+            , ptext (sLit "when it also occurs in the (mono)type") ]
 
     checkNoExtraConstraintsWildcard (L lc ty) = go ty
       where
@@ -1217,8 +1223,8 @@ mkImport cconv safety (L loc entity, v, ty)
   | Just loc <- maybeLocation $ findWildcards ty
     = parseErrorSDoc loc $
       ptext (sLit "Wildcard not allowed") $$
-      ptext (sLit "In foreign import declaration") <+> quotes (ppr v) $$
-      quotes (ppr ty)
+      ptext (sLit "In foreign import declaration") <+>
+      quotes (ppr v) $$ ppr ty
   | cconv == PrimCallConv                      = do
   let funcTarget = CFunction (StaticTarget entity Nothing True)
       importSpec = CImport PrimCallConv safety Nothing funcTarget
@@ -1294,7 +1300,7 @@ mkExport :: CCallConv
          -> P (HsDecl RdrName)
 mkExport cconv (L _ entity, v, ty) = do
   checkNoPartialType (ptext (sLit "In foreign export declaration") <+>
-                      quotes (ppr v) $$ quotes (ppr ty)) ty
+                      quotes (ppr v) $$ ppr ty) ty
   return $ ForD (ForeignExport v ty noForeignExportCoercionYet
                  (CExport (CExportStatic entity' cconv)))
   where
