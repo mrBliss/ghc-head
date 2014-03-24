@@ -31,7 +31,7 @@ import TcPat
 import TcMType
 import PatSyn
 import ConLike
-import Type( tidyOpenType, tidyOpenTypes )
+import Type( tidyOpenType, tidyOpenTypes, tidyTyVarBndrs )
 import FunDeps( growThetaTyVars )
 import TyCon
 import TcType
@@ -660,15 +660,23 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
        ; traceTc "Binding:" (ppr final_closed $$
                              ppr (poly_id, idType poly_id))
        ; tidy_env <- tcInitTidyEnv
-       ; let (tidy_env', tidy_poly_ty) = tidyOpenType tidy_env (idType poly_id)
-       ; reportInstantiatedWildcards sig tidy_poly_ty skol_info tidy_env'
+       -- The tidy_env returned by tidyOpenType is empty for a closed
+       -- type, so we tidy the type variables separately, as we'll
+       -- need them later in tidy_env, for
+       -- reportInstantiatedWildcards, where we will tidy individual
+       -- free type variables.
+       ; let (tvs, _)      = tcSplitForAllTys (idType poly_id)
+             (tidy_env', _) = tidyTyVarBndrs tidy_env tvs
+             (tidy_env'', tidy_poly_ty) = tidyOpenType tidy_env' (idType poly_id)
+       ; reportInstantiatedWildcards sig tidy_poly_ty skol_info tidy_env''
        ; return (unitBag abs_bind, [poly_id], final_closed) }
          -- poly_id is guaranteed to be zonked by mkExport
 
 
 reportInstantiatedWildcards :: TcSigInfo -> Type -> SkolemInfo -> TidyEnv -> TcM ()
-reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id, sig_nwcs = nwcs,
-                                         sig_extra = extra, sig_theta = theta })
+reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
+                                         sig_nwcs = nwcs, sig_extra = extra,
+                                         sig_theta = theta })
                             inf_ty skol_info tidy_env
   = do { dflags <- getDynFlags
        -- By default, we report errors for wildcard instantiations in
@@ -679,25 +687,30 @@ reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id, sig_nwcs = 
                case xopt Opt_PartialTypeSignatures dflags of
                  True  -> (reportTrace, reportExtraTrace)
                  False -> (reportErr,   reportExtraErr)
-       -- nwcs contains all the wildcards, both named and unnamed. The
-       -- latter were given a dummy name. We find all the
-       -- instantiations by looking at the types the wildcards (metas)
-       -- were unified with. We also 'tidy' the types found, so our
-       -- messages will contain types like 'forall tw_ tw_1 . ...'
-       -- instead of 'forall tw_ tw_ . ...' (notice the '1'). The
-       -- tidy_env will be threaded through the rest of this function.
-       ; (tidy_env', instantiations) <- fmap (tidy tidy_env) $
-                                        forM nwcs $ \(_, tv) -> do
+
+       -- We find all the instantiations by looking at the types the
+       -- wildcards (metas) were unified with.
+       --
+       -- Note that nwcs contains all the wildcards, both named and
+       -- unnamed. The latter were given a dummy name.
+       ; instantiations <- forM nwcs $ \(_, tv) -> do
          { details <- readMutVar (metaTvRef tv)
          ; case details of
              Flexi       -> pprPanic "Free meta variable found" $ ppr tv
              Indirect ty -> do { zonkedTy <- zonkTcType ty
                                ; return (tv, zonkedTy) } }
-       ; mapM_ (uncurry report) instantiations
+       -- We also 'tidy' the types found, so our error or trace
+       -- messages will contain types like 'forall tw_ tw_1 . ...'
+       -- instead of 'forall tw_ tw_ . ...' (notice the '1'). The
+       -- tidy_env used for this will be threaded through the rest of
+       -- this function.
+       ; let (tidy_env', tidy_instantiations) = tidy tidy_env instantiations
+       -- Do the actual reporting of wildcard instantiations
+       ; mapM_ (uncurry report) tidy_instantiations
        -- Make a substitution of all (named) wildcards that were
        -- instantiated to type variables
        ; let subst = mkTvSubst emptyInScopeSet $
-                     mkVarEnv [ i | i@(_, ty) <- instantiations
+                     mkVarEnv [ i | i@(_, ty) <- tidy_instantiations
                                   , isTyVarTy ty ]
        -- This substitution must be applied to the theta with holes
        -- before comparing it with the theta without holes, as named
@@ -706,9 +719,10 @@ reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id, sig_nwcs = 
        --   foo :: (Enum _a, _) => _a -> (String, b)
        --   foo x = (show (succ x), x)
        -- Inferred: forall b. (Enum b, Show b) => b -> (String, b)
-       -- Without applying the subst, we would report (Enum b, Show b)
-       -- as extra constraints that were instantiated.
-       -- With the subst applied, we just report (Show b), as intended.
+       -- Without applying the substitution, we would report (Enum b,
+       -- Show b) as extra constraints that were instantiated. With
+       -- the substitution applied, we just report (Show b), as
+       -- intended.
        ; case extra of
            Nothing  -> return ()
            Just loc -> let extras = deleteFirstsBy tcEqType inf_theta
@@ -745,18 +759,14 @@ reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id, sig_nwcs = 
            ; err <- mkLongErrAt (getSrcSpan tv) msg empty
            ; reportError err }
 
-      reportTrace tv ty =
-        do { let msg = msgInstantiated tv ty $$ completeTy
-           ; traceTc "" msg }
+      reportTrace tv ty = traceTc "" $ msgInstantiated tv ty $$ completeTy
 
       reportExtraErr extra_cts loc =
         do { let msg = msgExtra extra_cts $$ completeTy $$ hintEnable
            ; err <- mkLongErrAt loc msg empty
            ; reportError err }
 
-      reportExtraTrace extra_cts _ =
-        do { let msg = msgExtra extra_cts $$ completeTy
-           ; traceTc "" msg }
+      reportExtraTrace extra_cts _ = traceTc "" $ msgExtra extra_cts $$ completeTy
 
 --------------
 mkExport :: PragFun

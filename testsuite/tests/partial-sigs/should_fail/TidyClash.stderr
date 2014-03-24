@@ -1,0 +1,16 @@
+
+TidyClash.hs:8:21:
+    Instantiated wildcard ‘_’ to: tw_1
+      in the type signature for bar :: tw_ -> (tw_, _ -> _)
+      at TidyClash.hs:8:8-27
+    The complete inferred type is:
+      bar :: forall tw_ tw_1 tw_2. tw_ -> (tw_, tw_1 -> tw_2)
+    To use the inferred type, enable PartialTypeSignatures
+
+TidyClash.hs:8:26:
+    Instantiated wildcard ‘_’ to: tw_2
+      in the type signature for bar :: tw_ -> (tw_, _ -> _)
+      at TidyClash.hs:8:8-27
+    The complete inferred type is:
+      bar :: forall tw_ tw_1 tw_2. tw_ -> (tw_, tw_1 -> tw_2)
+    To use the inferred type, enable PartialTypeSignatures
