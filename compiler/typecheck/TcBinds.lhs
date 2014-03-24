@@ -31,7 +31,7 @@ import TcPat
 import TcMType
 import PatSyn
 import ConLike
-import Type( tidyOpenType, tidyOpenTypes, TidyEnv )
+import Type( tidyOpenType, tidyOpenTypes )
 import FunDeps( growThetaTyVars )
 import TyCon
 import TcType
@@ -57,7 +57,7 @@ import Type(mkStrLitTy)
 import Class(classTyCon)
 import PrelNames(ipClassName)
 import TcValidity (checkValidTheta)
-import VarEnv(mkVarEnv, emptyInScopeSet)
+import VarEnv(mkVarEnv, emptyInScopeSet, TidyEnv)
 
 import Control.Monad
 import Data.List(deleteFirstsBy, nub, mapAccumL)
