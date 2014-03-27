@@ -57,10 +57,10 @@ import Type(mkStrLitTy)
 import Class(classTyCon)
 import PrelNames(ipClassName)
 import TcValidity (checkValidTheta)
-import VarEnv(mkVarEnv, emptyInScopeSet, TidyEnv)
+import VarEnv(TidyEnv)
 
 import Control.Monad
-import Data.List(deleteFirstsBy, nub, mapAccumL)
+import Data.List(nub, mapAccumL)
 
 #include "HsVersions.h"
 \end{code}
@@ -639,7 +639,7 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                EvBinds bag -> ASSERT (isEmptyBag bag)
                               newTcEvBinds
        ; (qtvs, givens, mr_bites) <-
-                          simplifyInfer2 closed mono extra  [name_tau] wanted ev_binds_var
+                          simplifyInfer2 closed mono extra [name_tau] wanted ev_binds_var
        ; when (givens /= [] && not extra) $ return () -- TODO report error somehow?
        ; gbl_tvs <- tcGetGlobalTyVars
        ; q_sig_tvs <- quantifyTyVars gbl_tvs (extendVarSetList emptyVarSet (map snd sig_tvs))
@@ -668,16 +668,16 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
        ; let (tvs, _)      = tcSplitForAllTys (idType poly_id)
              (tidy_env', _) = tidyTyVarBndrs tidy_env tvs
              (tidy_env'', tidy_poly_ty) = tidyOpenType tidy_env' (idType poly_id)
-       ; reportInstantiatedWildcards sig tidy_poly_ty skol_info tidy_env''
+       ; extra_cts <- zonkTcThetaType (map evVarPred givens)
+       ; reportInstantiatedWildcards sig tidy_poly_ty extra_cts skol_info tidy_env''
        ; return (unitBag abs_bind, [poly_id], final_closed) }
          -- poly_id is guaranteed to be zonked by mkExport
 
 
-reportInstantiatedWildcards :: TcSigInfo -> Type -> SkolemInfo -> TidyEnv -> TcM ()
+reportInstantiatedWildcards :: TcSigInfo -> Type -> ThetaType -> SkolemInfo -> TidyEnv -> TcM ()
 reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
-                                         sig_nwcs = nwcs, sig_extra = extra,
-                                         sig_theta = theta })
-                            inf_ty skol_info tidy_env
+                                         sig_nwcs = nwcs, sig_extra = extra })
+                            inf_ty extra_cts skol_info tidy_env
   = do { dflags <- getDynFlags
        -- By default, we report errors for wildcard instantiations in
        -- partial type signatures, unless the PartialTypeSignatures
@@ -707,35 +707,16 @@ reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
        ; let (tidy_env', tidy_instantiations) = tidy tidy_env instantiations
        -- Do the actual reporting of wildcard instantiations
        ; mapM_ (uncurry report) tidy_instantiations
-       -- Make a substitution of all (named) wildcards that were
-       -- instantiated to type variables
-       ; let subst = mkTvSubst emptyInScopeSet $
-                     mkVarEnv [ i | i@(_, ty) <- tidy_instantiations
-                                  , isTyVarTy ty ]
-       -- This substitution must be applied to the theta with holes
-       -- before comparing it with the theta without holes, as named
-       -- wildcards can be instantiated to type variables (the unnamed
-       -- wildcards in the substitution are ignored). Example:
-       --   foo :: (Enum _a, _) => _a -> (String, b)
-       --   foo x = (show (succ x), x)
-       -- Inferred: forall b. (Enum b, Show b) => b -> (String, b)
-       -- Without applying the substitution, we would report (Enum b,
-       -- Show b) as extra constraints that were instantiated. With
-       -- the substitution applied, we just report (Show b), as
-       -- intended.
+       -- Report the extra constraints that were inferred
        ; case extra of
            Nothing  -> return ()
-           Just loc -> let extras = deleteFirstsBy tcEqType inf_theta
-                                                   (substTheta subst theta)
-                           (_, tidyExtras) = tidyOpenTypes tidy_env' extras
-                       in reportExtra tidyExtras loc }
+           Just loc -> let (_, tidy_extra_cts) = tidyOpenTypes tidy_env' extra_cts
+                       in reportExtra tidy_extra_cts loc }
     where
       -- Tidy just the types, not the tyvars
       tidy tidy_env tvtys = mapAccumL tidyTvTy tidy_env tvtys
       tidyTvTy env (tv, ty) = let (env', ty') = tidyOpenType env ty
                               in (env', (tv, ty'))
-
-      (_, inf_theta, _) = tcSplitSigmaTy inf_ty
 
       completeTy = hang (ptext (sLit "The complete inferred type is:"))
                    2 (pprPrefixOcc id <+> dcolon <+> ppr inf_ty)
