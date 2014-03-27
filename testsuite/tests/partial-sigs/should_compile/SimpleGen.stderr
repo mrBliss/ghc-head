@@ -1,0 +1,6 @@
+TYPE SIGNATURES
+  bar :: forall tw_. tw_ -> Bool
+TYPE CONSTRUCTORS
+COERCION AXIOMS
+Dependent modules: []
+Dependent packages: [base, ghc-prim, integer-gmp]

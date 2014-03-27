@@ -7,6 +7,3 @@ foo = id
 
 -- Inferred: (a ~ Bool) => a -> Bool
 
-test :: Bool -> Bool
-test = foo
-

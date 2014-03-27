@@ -23,6 +23,3 @@ isMeltdown = undefined
 unlessMeltdown :: _nm () ->  _nm ()
 unlessMeltdown c = do m <- isMeltdown
                       if m then return () else c
-
-test :: NukeMonad foo bar ()
-test = unlessMeltdown (undefined :: NukeMonad foo bar ())

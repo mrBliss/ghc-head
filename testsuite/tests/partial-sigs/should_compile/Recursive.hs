@@ -10,6 +10,3 @@ g = f `orr` True
 f :: _
 f = g
 
-
-test :: (Bool, Bool)
-test = (g, f)

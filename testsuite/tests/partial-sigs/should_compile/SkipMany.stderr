@@ -1,0 +1,17 @@
+TYPE SIGNATURES
+  skipMany ::
+    forall tok st a. GenParser tok st a -> GenParser tok st ()
+  skipMany' ::
+    forall tok st a. GenParser tok st a -> GenParser tok st ()
+TYPE CONSTRUCTORS
+  GenParser :: * -> * -> * -> *
+  data GenParser tok st a
+    No C type associated
+    Roles: [representational, representational, representational]
+    RecFlag NonRecursive, Promotable
+    = GenParser :: tok -> st -> a -> GenParser tok st a
+        Stricts: _ _ _
+    FamilyInstance: none
+COERCION AXIOMS
+Dependent modules: []
+Dependent packages: [base, ghc-prim, integer-gmp]

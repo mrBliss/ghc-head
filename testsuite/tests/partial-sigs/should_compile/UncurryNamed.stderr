@@ -1,0 +1,8 @@
+TYPE SIGNATURES
+  unc ::
+    forall tw_a tw_b tw_c.
+    (tw_a -> tw_b -> tw_c) -> (tw_a, tw_b) -> tw_c
+TYPE CONSTRUCTORS
+COERCION AXIOMS
+Dependent modules: []
+Dependent packages: [base, ghc-prim, integer-gmp]

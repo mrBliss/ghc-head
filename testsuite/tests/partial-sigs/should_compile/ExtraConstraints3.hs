@@ -3,6 +3,11 @@ module ExtraConstraints3 where
 
 import qualified Prelude as P
 
+import Prelude (Bool, Bounded, Char, Either, Enum, Eq, FilePath, Floating,
+                Fractional, Functor, IO, IOError, Int, Integer, Integral,
+                Maybe, Monad, Num, Ord, Ordering, Rational, Read, ReadS, Real,
+                RealFloat, RealFrac, Show, ShowS, String)
+
 -- Proof by enumeration! :)
 -- All of Prelude typechecks given the dummy type signature `_ => _`,
 -- which is the same as omitting the type signature entirely.

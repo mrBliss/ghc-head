@@ -1,0 +1,6 @@
+TYPE SIGNATURES
+  fall :: forall a. a -> a
+TYPE CONSTRUCTORS
+COERCION AXIOMS
+Dependent modules: []
+Dependent packages: [base, ghc-prim, integer-gmp]
