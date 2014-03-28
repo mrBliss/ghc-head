@@ -123,6 +123,7 @@ import DynFlags
 import Outputable
 import ListSetOps
 import FastString
+import OrdList  ( OrdList )
 
 import qualified Data.Map as Map
 import Data.Map      ( Map )
@@ -350,9 +351,18 @@ data TcGblEnv
         tcg_main      :: Maybe Name,         -- ^ The Name of the main
                                              -- function, if this module is
                                              -- the main module.
-        tcg_safeInfer :: TcRef Bool          -- Has the typechecker
+        tcg_safeInfer :: TcRef Bool,         -- Has the typechecker
                                              -- inferred this module
                                              -- as -XSafe (Safe Haskell)
+        tcg_instantiation_reporters :: TcRef (OrdList (TcM ()))
+                -- ^ An OrdList (for the efficient snoc) of delayed monadic
+                -- computations that, when called, will report as errors or
+                -- trace (depending on the PartialTypeSignatures flag) the
+                -- inferred types the wildcards in partial type signatures
+                -- were instantiated to. Why store delayed monadic
+                -- computations in the environment instead of reporting them
+                -- directly? The information required to report the
+                -- instantiations is lost before the final types are known.
     }
 
 instance ContainsModule TcGblEnv where

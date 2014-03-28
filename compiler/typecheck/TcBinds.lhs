@@ -53,6 +53,7 @@ import Util
 import BasicTypes
 import Outputable
 import FastString
+import OrdList(snocOL)
 import Type(mkStrLitTy)
 import Class(classTyCon)
 import PrelNames(ipClassName)
@@ -669,10 +670,13 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
              (tidy_env', _) = tidyTyVarBndrs tidy_env tvs
              (tidy_env'', tidy_poly_ty) = tidyOpenType tidy_env' (idType poly_id)
        ; extra_cts <- zonkTcThetaType (map evVarPred givens)
-       ; reportInstantiatedWildcards sig tidy_poly_ty extra_cts skol_info tidy_env''
+       ; let reporter = reportInstantiatedWildcards sig tidy_poly_ty extra_cts skol_info tidy_env''
+       ; gbl_env <- getGblEnv
+       -- Save the reporter as a delayed monadic computation until after the
+       -- final types are known.
+       ; updMutVar (tcg_instantiation_reporters gbl_env) (`snocOL` reporter)
        ; return (unitBag abs_bind, [poly_id], final_closed) }
          -- poly_id is guaranteed to be zonked by mkExport
-
 
 reportInstantiatedWildcards :: TcSigInfo -> Type -> ThetaType -> SkolemInfo -> TidyEnv -> TcM ()
 reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
@@ -697,8 +701,7 @@ reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
          { details <- readMutVar (metaTvRef tv)
          ; case details of
              Flexi       -> pprPanic "Free meta variable found" $ ppr tv
-             Indirect ty -> do { zonkedTy <- zonkTcType ty
-                               ; return (tv, zonkedTy) } }
+             Indirect ty -> return (tv, ty) }
        -- We also 'tidy' the types found, so our error or trace
        -- messages will contain types like 'forall tw_ tw_1 . ...'
        -- instead of 'forall tw_ tw_ . ...' (notice the '1'). The

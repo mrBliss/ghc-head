@@ -99,6 +99,7 @@ import FastString
 import Maybes
 import Util
 import Bag
+import OrdList ( fromOL, nilOL )
 
 import Control.Monad
 
@@ -358,6 +359,16 @@ tcRnSrcDecls boot_iface decls
         (bind_ids, ev_binds', binds', fords', imp_specs', rules', vects')
             <- {-# SCC "zonkTopDecls" #-}
                zonkTopDecls all_ev_binds binds sig_ns rules vects imp_specs fords ;
+
+        -- Now the final types are known (and zonked), report the
+        -- types the wildcards in the partial type signatures were
+        -- instantiated to. We had to wait at least until after
+        -- simplifyTop was called.
+        gbl_env <- getGblEnv ;
+        wildcard_instantiation_reporters <-
+          readMutVar (tcg_instantiation_reporters gbl_env) ;
+        sequence_ (fromOL wildcard_instantiation_reporters) ;
+        writeMutVar (tcg_instantiation_reporters gbl_env) nilOL ;
 
         let { final_type_env = extendTypeEnvWithIds type_env bind_ids
             ; tcg_env' = tcg_env { tcg_binds    = binds',

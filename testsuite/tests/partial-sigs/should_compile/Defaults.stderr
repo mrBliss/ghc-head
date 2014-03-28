@@ -1,0 +1,6 @@
+TYPE SIGNATURES
+  foo :: Integer
+TYPE CONSTRUCTORS
+COERCION AXIOMS
+Dependent modules: []
+Dependent packages: [base, ghc-prim, integer-gmp]
