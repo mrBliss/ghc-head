@@ -1,0 +1,11 @@
+
+Defaulting1MROff.hs:6:1:
+    No instance for (Num _)
+      arising from the inferred type of alpha :: Num _ => _
+    The type variable ‘_’ is ambiguous
+    Note: there are several potential instances:
+      instance Num Double -- Defined in ‘GHC.Float’
+      instance Num Float -- Defined in ‘GHC.Float’
+      instance Integral a => Num (GHC.Real.Ratio a)
+        -- Defined in ‘GHC.Real’
+      ...plus three others

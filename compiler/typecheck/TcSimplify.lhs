@@ -257,7 +257,9 @@ simplifyInfer top_lvl apply_mr extra_constraints name_taus wanteds
        ; return (qtkvs, [], False, emptyTcEvBinds) }
   | otherwise
   = do { ev_binds_var <- newTcEvBinds
-       ; (qtvs, evvars, mr_bites) <- simplifyInfer2 top_lvl apply_mr extra_constraints name_taus wanteds ev_binds_var
+       ; (qtvs, evvars, mr_bites) <- simplifyInfer2 top_lvl apply_mr
+                                     extra_constraints name_taus wanteds
+                                     ev_binds_var emptyVarSet
        ; return (qtvs, evvars, mr_bites, TcEvBinds ev_binds_var)
        }
 
@@ -269,12 +271,14 @@ simplifyInfer2 :: Bool
                                        -- and their tau-types
               -> WantedConstraints
               -> EvBindsVar
+              -> VarSet             -- The annotated type variables
               -> TcM ([TcTyVar],    -- Quantify over these type variables
                       [EvVar],      -- ... and these constraints
                       Bool)         -- The monomorphism restriction did something
                                     --   so the results type is not as general as
                                     --   it could be
-simplifyInfer2 _top_lvl apply_mr extra_constraints name_taus wanteds ev_binds_var
+simplifyInfer2 _top_lvl apply_mr extra_constraints name_taus wanteds
+               ev_binds_var ann_tvs
   | isEmptyWC wanteds
   = do { gbl_tvs <- tcGetGlobalTyVars
        ; qtkvs <- quantifyTyVars gbl_tvs (tyVarsOfTypes (map snd name_taus))
@@ -365,7 +369,8 @@ simplifyInfer2 _top_lvl apply_mr extra_constraints name_taus wanteds ev_binds_va
 
        ; (qtvs, bound) <- if mr_bites
                           then do { qtvs <- quantifyTyVars constrained_tvs zonked_tau_tvs
-                                  ; return (qtvs, []) }
+                                  ; let pbound_ann = filter (quantifyPred ann_tvs) quant_pred_candidates
+                                  ; return (qtvs, pbound_ann) }
                           else do { qtvs <- quantifyTyVars gbl_tvs poly_qtvs
                                   ; return (qtvs, pbound) }
 
@@ -378,7 +383,8 @@ simplifyInfer2 _top_lvl apply_mr extra_constraints name_taus wanteds ev_binds_va
               , ptext (sLit "poly_qtvs =") <+> ppr poly_qtvs
               , ptext (sLit "constrained_tvs =") <+> ppr constrained_tvs
               , ptext (sLit "mr_bites =") <+> ppr mr_bites
-              , ptext (sLit "qtvs =") <+> ppr qtvs ]
+              , ptext (sLit "qtvs =") <+> ppr qtvs
+              , ptext (sLit "ann_tvs = ") <+> ppr ann_tvs ]
 
        ; if null qtvs && null bound
          then do { traceTc "} simplifyInfer/no implication needed" empty

@@ -1,4 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 module ExtraConstraints3 where
 
 import qualified Prelude as P
@@ -8,7 +9,7 @@ import Prelude (Bool, Bounded, Char, Either, Enum, Eq, FilePath, Floating,
                 Maybe, Monad, Num, Ord, Ordering, Rational, Read, ReadS, Real,
                 RealFloat, RealFrac, Show, ShowS, String)
 
--- Proof by enumeration! :)
+-- Proof by enumeration! jk :p
 -- All of Prelude typechecks given the dummy type signature `_ => _`,
 -- which is the same as omitting the type signature entirely.
 

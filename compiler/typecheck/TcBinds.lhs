@@ -639,11 +639,12 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
                TcEvBinds ev_binds_var -> return ev_binds_var
                EvBinds bag -> ASSERT (isEmptyBag bag)
                               newTcEvBinds
+       ; let ann_tvs = mkVarSet (map snd sig_tvs)
        ; (qtvs, givens, mr_bites) <-
-                          simplifyInfer2 closed mono extra [name_tau] wanted ev_binds_var
+                          simplifyInfer2 closed mono extra [name_tau] wanted ev_binds_var ann_tvs
        ; when (givens /= [] && not extra) $ return () -- TODO report error somehow?
        ; gbl_tvs <- tcGetGlobalTyVars
-       ; q_sig_tvs <- quantifyTyVars gbl_tvs (extendVarSetList emptyVarSet (map snd sig_tvs))
+       ; q_sig_tvs <- quantifyTyVars gbl_tvs ann_tvs
        ; inferred_theta <- zonkTcThetaType (sig_theta ++ map evVarPred givens)
        ; traceTc "tcPolyCombi: " (ppr ev_binds $$
                                   ppr inferred_theta $$
@@ -1521,7 +1522,7 @@ decideGeneralisationPlan dflags type_env bndr_names lbinds sig_fn
     mono_local_binds = xopt Opt_MonoLocalBinds dflags
                     && not closed_flag
 
-    no_sig n = isNothing (sig_fn n)
+    no_sig n = noCompleteSig (sig_fn n)
 
     -- With OutsideIn, all nested bindings are monomorphic
     -- except a single function binding with a signature
