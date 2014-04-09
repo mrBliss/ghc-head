@@ -2960,16 +2960,6 @@ impliedFlags
     , (Opt_ImplicitParams, turnOn, Opt_FlexibleInstances)
 
     , (Opt_JavaScriptFFI, turnOn, Opt_InterruptibleFFI)
-
-    , (Opt_DeriveTraversable, turnOn, Opt_DeriveFunctor)
-    , (Opt_DeriveTraversable, turnOn, Opt_DeriveFoldable)
-
-    -- Turning on partial type signatures ('_') also enables named
-    -- wildcards ('_a'). Named wildcards can still be turned off, as
-    -- they change existing behaviour (they were previously parsed as
-    -- type variables) whereas unnamed wildcards are wholly new
-    -- behaviour (they couldn't be parsed before).
-    , (Opt_PartialTypeSignatures, turnOn, Opt_NamedWildcards)
   ]
 
 optLevelFlags :: [([Int], GeneralFlag)]

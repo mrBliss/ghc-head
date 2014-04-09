@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PartialTypeSignatures, NamedWildcards #-}
 module EveryNamed where
 
 every :: (_a -> Bool) -> [_a] -> Bool

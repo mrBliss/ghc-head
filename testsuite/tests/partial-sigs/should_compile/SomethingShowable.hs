@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PartialTypeSignatures, NamedWildcards #-}
 module SomethingShowable where
 
 somethingShowable :: Show _x => _x -> _

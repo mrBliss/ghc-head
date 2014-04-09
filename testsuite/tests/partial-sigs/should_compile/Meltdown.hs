@@ -1,4 +1,4 @@
-{-# LANGUAGE PartialTypeSignatures, ScopedTypeVariables #-}
+{-# LANGUAGE PartialTypeSignatures, ScopedTypeVariables, NamedWildcards #-}
 module Meltdown where
 
 import Control.Applicative
