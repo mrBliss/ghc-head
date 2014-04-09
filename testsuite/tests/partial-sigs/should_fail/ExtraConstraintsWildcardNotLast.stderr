@@ -1,5 +1,5 @@
 
-ExtraConstraintsWildcardNotLast.hs:4:8:
+ExtraConstraintsWildcardNotLast.hs:4:9:
     Invalid partial type signature:
     (_, Eq a) => a -> a
     An extra-constraints wildcard is only allowed

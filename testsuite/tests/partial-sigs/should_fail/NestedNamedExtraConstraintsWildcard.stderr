@@ -1,5 +1,5 @@
 
-NamedExtraConstraintsWildcard.hs:4:15:
+NestedNamedExtraConstraintsWildcard.hs:4:23:
     Invalid partial type signature:
-    (Eq a, _a) => a -> a
+    Bool -> (Eq a, _a) => a
     A named wildcard cannot occur as a constraint

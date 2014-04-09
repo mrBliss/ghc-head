@@ -1,5 +1,5 @@
 
-NestedExtraConstraintsWildcard.hs:4:8:
+NestedExtraConstraintsWildcard.hs:4:23:
     Invalid partial type signature:
     Bool -> (Eq a, _) => a
     An extra-constraints wildcard is only allowed

@@ -899,7 +899,7 @@ checkPartialTypeSignature fullTy = case fullTy of
     -- Check that the type doesn't contain any more extra-constraints wildcards
     checkNoExtraConstraintsWildcard ty
     -- Named extra-constraints wildcards aren't allowed
-    when (any (isNamedWildcardTy . unLoc) ctxt) $ err hintNamed lc fullTy
+    whenM (firstMatch isNamedWildcardTy ctxt) $ \(L l _) -> err hintNamed l fullTy
     -- If there's an extra-constraints wildcard, remove it from the
     -- context and let extra be its location
     let (rest, extra) = case () of
@@ -908,14 +908,14 @@ checkPartialTypeSignature fullTy = case fullTy of
           _ | otherwise -> (ctxt, Nothing)
     -- After removing the extra-constraints wildcard at the end of the
     -- list, there should be no more left
-    when (any (isWildcardTy . unLoc) rest) $ err hintLast lc fullTy
+    whenM (firstMatch isWildcardTy rest) $ \(L l _) -> err hintLast l fullTy
     -- Find all wildcards in the context and the monotype, then divide
     -- them in unnamed and named wildcards
     let (unnamedInCtxt, namedInCtxt) = splitUnnamedNamed $ concatMap findWildcards rest
         (_            , namedInTy)   = splitUnnamedNamed $ findWildcards ty
     -- Unnamed wildcards aren't allowed in the context
     case unnamedInCtxt of
-      (Found lc:_) -> err hintUnnamedConstraint lc fullTy
+      (Found lc : _) -> err hintUnnamedConstraint lc fullTy
       _            -> return ()
     -- Calculcate the set of wildcards in the context that aren't in the monotype
     let namedWildcardsNotInMonotype = Set.fromList (namedWildcards namedInCtxt)
@@ -937,6 +937,12 @@ checkPartialTypeSignature fullTy = case fullTy of
     return (ty, Nothing)
 
   where
+    firstMatch :: (HsType a -> Bool) -> HsContext a -> Maybe (LHsType a)
+    firstMatch pred ctxt = listToMaybe (filter (pred . unLoc) ctxt)
+
+    whenM :: Maybe (LHsType a) -> (LHsType a -> P ()) -> P ()
+    whenM mb f = maybe (return ()) f mb
+
     err hintSDoc lc ty = parseErrorSDoc lc $
                          ptext (sLit "Invalid partial type signature:") $$
                          ppr ty $$ hintSDoc
@@ -952,7 +958,7 @@ checkPartialTypeSignature fullTy = case fullTy of
               ptext (sLit "is only allowed in the constraints")
             , ptext (sLit "when it also occurs in the (mono)type") ]
 
-    checkNoExtraConstraintsWildcard (L lc ty) = go ty
+    checkNoExtraConstraintsWildcard (L _ ty) = go ty
       where
         -- Report nested (named) extra-constraints wildcards
         go' = go . unLoc
@@ -973,8 +979,8 @@ checkPartialTypeSignature fullTy = case fullTy of
         go (HsExplicitTupleTy _ xs) = mapM_ go' xs
         go (HsWrapTy _ x)           = go' (noLoc x)
         go (HsForAllTy _ _ (L _ ctxt) x)
-          | any (isWildcardTy . unLoc) ctxt = err hintNested lc ty
-          | any (isNamedWildcardTy . unLoc) ctxt = err hintNamed lc ty
+          | Just (L l _) <- firstMatch isWildcardTy      ctxt = err hintNested l ty
+          | Just (L l _) <- firstMatch isNamedWildcardTy ctxt = err hintNamed l ty
           | otherwise               = go' x
         go _                        = return ()
 
