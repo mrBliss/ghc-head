@@ -79,10 +79,6 @@ module TcRnTypes(
         pprEvVars, pprEvVarWithType,
         pprArising, pprArisingAt,
 
-        -- Named wildcards
-        NamedWildcardMap, emptyNamedWildcardMap, lookupNamedWildcard,
-        insertNamedWildcard,
-
         -- Misc other types
         TcId, TcIdSet, TcTyVarBind(..), TcTyVarBinds
 
@@ -125,11 +121,10 @@ import ListSetOps
 import FastString
 import OrdList  ( OrdList )
 
-import qualified Data.Map as Map
-import Data.Map      ( Map )
 import Data.Set      ( Set )
 
 #ifdef GHCI
+import Data.Map      ( Map )
 import Data.Dynamic  ( Dynamic )
 import Data.Typeable ( TypeRep )
 
@@ -512,18 +507,6 @@ data TcLclEnv           -- Changes as we move inside an expression
         tcl_lie  :: TcRef WantedConstraints,    -- Place to accumulate type constraints
         tcl_errs :: TcRef Messages              -- Place to accumulate errors
     }
-
--- TODOT better location
-type NamedWildcardMap = Map Name TcType
-
-emptyNamedWildcardMap :: NamedWildcardMap
-emptyNamedWildcardMap = Map.empty
-
-lookupNamedWildcard :: Name -> NamedWildcardMap -> Maybe TcType
-lookupNamedWildcard = Map.lookup
-
-insertNamedWildcard :: Name -> TcType -> NamedWildcardMap -> NamedWildcardMap
-insertNamedWildcard = Map.insert
 
 type TcTypeEnv = NameEnv TcTyThing
 
