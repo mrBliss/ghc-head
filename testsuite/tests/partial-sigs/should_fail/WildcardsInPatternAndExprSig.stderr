@@ -1,0 +1,14 @@
+
+WildcardsInPatternAndExprSig.hs:4:25:
+    Instantiated wildcard ‘_’ to: [tw_a]
+      in a pattern type signature: [x :: _a] :: _
+      at WildcardsInPatternAndExprSig.hs:4:25
+    The complete inferred type is: [tw_a]
+    To use the inferred type, enable PartialTypeSignatures
+
+WildcardsInPatternAndExprSig.hs:4:38:
+    Instantiated wildcard ‘_a’ to: tw_a
+      in a pattern type signature: Just ([x :: _a] :: _) :: Maybe [_a]
+      at WildcardsInPatternAndExprSig.hs:4:31-40
+    The complete inferred type is: Maybe [tw_a]
+    To use the inferred type, enable PartialTypeSignatures

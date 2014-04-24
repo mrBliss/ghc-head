@@ -12,12 +12,10 @@ test('Defaulting2MROn', normal, compile, ['-ddump-types'])
 test('Either', normal, compile, ['-ddump-types'])
 test('Every', normal, compile, ['-ddump-types'])
 test('EveryNamed', normal, compile, ['-ddump-types'])
-# Broken
+# TODOT Broken
 test('EqualityConstraint', skip, compile, ['-ddump-types'])
-# Not yet implemented
-test('ExpressionSig', skip, compile, ['-ddump-types'])
-# Not yet implemented
-test('ExpressionSigNamed', skip, compile, ['-ddump-types'])
+test('ExpressionSig', normal, compile, ['-ddump-types'])
+test('ExpressionSigNamed', normal, compile, ['-ddump-types'])
 test('ExtraConstraints1', normal, compile, ['-ddump-types'])
 test('ExtraConstraints2', normal, compile, ['-ddump-types'])
 test('ExtraConstraints3', normal, compile, ['-ddump-types'])
@@ -31,10 +29,8 @@ test('HigherRank1', normal, compile, ['-ddump-types'])
 test('HigherRank2', normal, compile, ['-ddump-types'])
 test('Meltdown', normal, compile, ['-ddump-types'])
 test('NamedTyVar', normal, compile, ['-ddump-types'])
-# Bug
 test('PatBind', normal, compile, ['-ddump-types'])
-# Not yet implemented
-test('PatternSig', skip, compile, ['-ddump-types'])
+test('PatternSig', normal, compile, ['-ddump-types'])
 test('Recursive', normal, compile, ['-ddump-types'])
 test('ShowNamed', normal, compile, ['-ddump-types'])
 test('SimpleGen', normal, compile, ['-ddump-types'])
