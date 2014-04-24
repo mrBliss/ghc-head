@@ -519,10 +519,10 @@ tidy1 :: Id               -- The Id being scrutinised
 --      NPat
 --      NPlusKPat
 
-tidy1 v (ParPat pat)      = tidy1 v (unLoc pat)
-tidy1 v (SigPatOut pat _) = tidy1 v (unLoc pat)
-tidy1 _ (WildPat ty)      = return (idDsWrapper, WildPat ty)
-tidy1 v (BangPat (L l p)) = tidy_bang_pat v l p
+tidy1 v (ParPat pat)        = tidy1 v (unLoc pat)
+tidy1 v (SigPatOut pat _ _) = tidy1 v (unLoc pat)
+tidy1 _ (WildPat ty)        = return (idDsWrapper, WildPat ty)
+tidy1 v (BangPat (L l p))   = tidy_bang_pat v l p
 
         -- case v of { x -> mr[] }
         -- = case v of { _ -> let x=v in mr[] }
@@ -596,8 +596,8 @@ tidy_bang_pat v _ p@(ConPatOut {}) = tidy1 v p
 tidy_bang_pat v _ p@(LitPat {})    = tidy1 v p
 
 -- Discard par/sig under a bang
-tidy_bang_pat v _ (ParPat (L l p))      = tidy_bang_pat v l p
-tidy_bang_pat v _ (SigPatOut (L l p) _) = tidy_bang_pat v l p
+tidy_bang_pat v _ (ParPat (L l p))        = tidy_bang_pat v l p
+tidy_bang_pat v _ (SigPatOut (L l p) _ _) = tidy_bang_pat v l p
 
 -- Push the bang-pattern inwards, in the hope that
 -- it may disappear next time

@@ -545,11 +545,12 @@ addTickHsExpr (RecordUpd e rec_binds cons tys1 tys2) =
                 (addTickHsRecordBinds rec_binds)
                 (return cons) (return tys1) (return tys2)
 
-addTickHsExpr (ExprWithTySigOut e ty) =
-        liftM2 ExprWithTySigOut
+addTickHsExpr (ExprWithTySigOut e ty wcs) =
+        liftM3 ExprWithTySigOut
                 (addTickLHsExprNever e) -- No need to tick the inner expression
                                     -- for expressions with signatures
                 (return ty)
+                (return wcs)
 addTickHsExpr (ArithSeq  ty wit arith_seq) =
         liftM3 ArithSeq
                 (return ty)

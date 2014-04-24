@@ -88,7 +88,7 @@ hsPatType (PArrPat _ ty)              = mkPArrTy ty
 hsPatType (TuplePat _ bx tys)         = mkTupleTy (boxityNormalTupleSort bx) tys
 hsPatType (ConPatOut { pat_con = L _ con, pat_arg_tys = tys }) 
                                       = conLikeResTy con tys
-hsPatType (SigPatOut _ ty)            = ty
+hsPatType (SigPatOut _ ty _)          = ty
 hsPatType (NPat lit _ _)              = overLitType lit
 hsPatType (NPlusKPat id _ _ _)        = idType (unLoc id)
 hsPatType (CoPat _ _ ty)              = ty
@@ -691,11 +691,12 @@ zonkExpr env (RecordUpd expr rbinds cons in_tys out_tys)
         ; new_rbinds  <- zonkRecFields env rbinds
         ; return (RecordUpd new_expr new_rbinds cons new_in_tys new_out_tys) }
 
-zonkExpr env (ExprWithTySigOut e ty)
+zonkExpr env (ExprWithTySigOut e ty wcs)
   = do { e' <- zonkLExpr env e
-       ; return (ExprWithTySigOut e' ty) }
+       ; (_, wcs') <- zonkTyBndrsX env wcs
+       ; return (ExprWithTySigOut e' ty wcs') }
 
-zonkExpr _ (ExprWithTySig _ _) = panic "zonkExpr env:ExprWithTySig"
+zonkExpr _ (ExprWithTySig _ _ _) = panic "zonkExpr env:ExprWithTySig"
 
 zonkExpr env (ArithSeq expr wit info)
   = do new_expr <- zonkExpr env expr
@@ -1062,10 +1063,11 @@ zonk_pat env p@(ConPatOut { pat_arg_tys = tys, pat_tvs = tyvars
 
 zonk_pat env (LitPat lit) = return (env, LitPat lit)
 
-zonk_pat env (SigPatOut pat ty)
+zonk_pat env (SigPatOut pat ty wcs)
   = do  { ty' <- zonkTcTypeToType env ty
         ; (env', pat') <- zonkPat env pat
-        ; return (env', SigPatOut pat' ty') }
+        ; (env'', wcs') <- zonkTyBndrsX env' wcs
+        ; return (env'', SigPatOut pat' ty' wcs') }
 
 zonk_pat env (NPat lit mb_neg eq_expr)
   = do  { lit' <- zonkOverLit env lit

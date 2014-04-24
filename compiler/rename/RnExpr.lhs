@@ -21,7 +21,7 @@ module RnExpr (
 import {-# SOURCE #-} TcSplice( runQuasiQuoteExpr )
 
 import RnBinds   ( rnLocalBindsAndThen, rnLocalValBindsLHS, rnLocalValBindsRHS,
-                   rnMatchGroup, rnGRHS, makeMiniFixityEnv)
+                   rnMatchGroup, rnGRHS, makeMiniFixityEnv )
 import HsSyn
 import TcRnMonad
 import Module           ( getModule )
@@ -274,11 +274,19 @@ rnExpr (RecordUpd expr rbinds _ _ _)
         ; return (RecordUpd expr' rbinds' [] [] [],
                   fvExpr `plusFV` fvRbinds) }
 
-rnExpr (ExprWithTySig expr pty)
-  = do  { (pty', fvTy) <- rnLHsType ExprWithTySigCtx pty
-        ; (expr', fvExpr) <- bindSigTyVarsFV ([],hsExplicitTvs pty') $
+rnExpr (ExprWithTySig expr pty ids)
+  = ASSERT( (null ids) )
+    do  { (nwcs, awcs, pty') <- extractWildcards pty
+        ; rdr_env <- getLocalRdrEnv
+        ; let nwcs' = nubBy eqLocated $
+                      filterOut (flip (elemLocalRdrEnv . unLoc) rdr_env) nwcs
+        ; bindLocalNamesFV awcs $
+          bindLocatedLocalsFV nwcs' $ \nwcs_new -> do {
+          (pty'', fvTy) <- rnLHsType ExprWithTySigCtx pty'
+        ; (expr', fvExpr) <- bindSigTyVarsFV ([], hsExplicitTvs pty'') $
                              rnLExpr expr
-        ; return (ExprWithTySig expr' pty', fvExpr `plusFV` fvTy) }
+        ; return (ExprWithTySig expr' pty'' (nwcs_new ++ awcs),
+                  fvExpr `plusFV` fvTy) } }
 
 rnExpr (HsIf _ p b1 b2)
   = do { (p', fvP) <- rnLExpr p

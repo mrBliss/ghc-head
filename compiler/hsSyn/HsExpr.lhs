@@ -218,11 +218,16 @@ data HsExpr id
   | ExprWithTySig                       
                 (LHsExpr id)
                 (LHsType id)
+                [id]                    -- After renaming, the list of ids
+                                        -- contains the named and unnamed
+                                        -- wildcards brought in scope by the
+                                        -- signature
 
   | ExprWithTySigOut                    -- TRANSLATION
                 (LHsExpr id)
                 (LHsType Name)          -- Retain the signature for
                                         -- round-tripping purposes
+                [TyVar]                 -- Instantiated wildcard variables
 
   -- | Arithmetic sequence
   | ArithSeq                            
@@ -577,10 +582,10 @@ ppr_expr (RecordCon con_id _ rbinds)
 ppr_expr (RecordUpd aexp rbinds _ _ _)
   = hang (pprParendExpr aexp) 2 (ppr rbinds)
 
-ppr_expr (ExprWithTySig expr sig)
+ppr_expr (ExprWithTySig expr sig _)
   = hang (nest 2 (ppr_lexpr expr) <+> dcolon)
          4 (ppr sig)
-ppr_expr (ExprWithTySigOut expr sig)
+ppr_expr (ExprWithTySigOut expr sig _)
   = hang (nest 2 (ppr_lexpr expr) <+> dcolon)
          4 (ppr sig)
 

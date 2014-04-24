@@ -656,7 +656,7 @@ might_fail_pat (ViewPat _ p _)               = not (isIrrefutableHsPat p)
 -- Now the recursive stuff
 might_fail_pat (ParPat p)                    = might_fail_lpat p
 might_fail_pat (AsPat _ p)                   = might_fail_lpat p
-might_fail_pat (SigPatOut p _ )              = might_fail_lpat p
+might_fail_pat (SigPatOut p _ _)             = might_fail_lpat p
 might_fail_pat (ListPat ps _ Nothing)        = any might_fail_lpat ps
 might_fail_pat (ListPat _ _ (Just _))      = True
 might_fail_pat (TuplePat ps _ _)             = any might_fail_lpat ps
@@ -686,10 +686,10 @@ tidy_pat (VarPat id)      = WildPat (idType id)
 tidy_pat (ParPat p)       = tidy_pat (unLoc p)
 tidy_pat (LazyPat p)      = WildPat (hsLPatType p)      -- For overlap and exhaustiveness checking
                                                         -- purposes, a ~pat is like a wildcard
-tidy_pat (BangPat p)      = tidy_pat (unLoc p)
-tidy_pat (AsPat _ p)      = tidy_pat (unLoc p)
-tidy_pat (SigPatOut p _)  = tidy_pat (unLoc p)
-tidy_pat (CoPat _ pat _)  = tidy_pat pat
+tidy_pat (BangPat p)       = tidy_pat (unLoc p)
+tidy_pat (AsPat _ p)       = tidy_pat (unLoc p)
+tidy_pat (SigPatOut p _ _) = tidy_pat (unLoc p)
+tidy_pat (CoPat _ pat _)   = tidy_pat pat
 
 -- These two are might_fail patterns, so we map them to
 -- WildPats.  The might_fail_pat stuff arranges that the

@@ -189,12 +189,12 @@ dsLExpr :: LHsExpr Id -> DsM CoreExpr
 dsLExpr (L loc e) = putSrcSpanDs loc $ dsExpr e
 
 dsExpr :: HsExpr Id -> DsM CoreExpr
-dsExpr (HsPar e)              = dsLExpr e
-dsExpr (ExprWithTySigOut e _) = dsLExpr e
-dsExpr (HsVar var)            = return (varToCoreExpr var)   -- See Note [Desugaring vars]
-dsExpr (HsIPVar _)            = panic "dsExpr: HsIPVar"
-dsExpr (HsLit lit)            = dsLit lit
-dsExpr (HsOverLit lit)        = dsOverLit lit
+dsExpr (HsPar e)                = dsLExpr e
+dsExpr (ExprWithTySigOut e _ _) = dsLExpr e
+dsExpr (HsVar var)              = return (varToCoreExpr var)   -- See Note [Desugaring vars]
+dsExpr (HsIPVar _)              = panic "dsExpr: HsIPVar"
+dsExpr (HsLit lit)              = dsLit lit
+dsExpr (HsOverLit lit)          = dsOverLit lit
 
 dsExpr (HsWrap co_fn e)
   = do { e' <- dsExpr e

@@ -1957,7 +1957,7 @@ gen_Newtype_binds loc cls inst_tvs cls_tys rhs_ty
         -- variables refer to the ones bound in the user_ty
         (_, _, tau_ty')  = tcSplitSigmaTy tau_ty
 
-    nlExprWithTySig e s = noLoc (ExprWithTySig e s)
+    nlExprWithTySig e s = noLoc (ExprWithTySig e s [])
 \end{code}
 
 %************************************************************************

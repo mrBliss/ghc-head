@@ -743,14 +743,14 @@ checkAPat msg loc e0 = do
    EAsPat n e         -> checkLPat msg e >>= (return . AsPat n)
    -- view pattern is well-formed if the pattern is
    EViewPat expr patE -> checkLPat msg patE >>= (return . (\p -> ViewPat expr p placeHolderType))
-   ExprWithTySig e t  -> do e <- checkLPat msg e
-                            -- Pattern signatures are parsed as sigtypes,
-                            -- but they aren't explicit forall points.  Hence
-                            -- we have to remove the implicit forall here.
-                            let t' = case t of
-                                       L _ (HsForAllTy Implicit _ (L _ []) ty) -> ty
-                                       other -> other
-                            return (SigPatIn e (mkHsWithBndrs t'))
+   ExprWithTySig e t _  -> do e <- checkLPat msg e
+                              -- Pattern signatures are parsed as sigtypes,
+                              -- but they aren't explicit forall points.  Hence
+                              -- we have to remove the implicit forall here.
+                              let t' = case t of
+                                         L _ (HsForAllTy Implicit _ (L _ []) ty) -> ty
+                                         other -> other
+                              return (SigPatIn e (mkHsWithBndrs t'))
 
    -- n+k patterns
    OpApp (L nloc (HsVar n)) (L _ (HsVar plus)) _
@@ -815,7 +815,7 @@ checkValDef :: SDoc
 
 checkValDef msg lhs (Just sig) grhss
         -- x :: ty = rhs  parses as a *pattern* binding
-  = checkPatBind msg (L (combineLocs lhs sig) (ExprWithTySig lhs sig)) grhss
+  = checkPatBind msg (L (combineLocs lhs sig) (ExprWithTySig lhs sig [])) grhss
 
 checkValDef msg lhs opt_sig grhss
   = do  { mb_fun <- isFunLhs lhs

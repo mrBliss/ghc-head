@@ -154,6 +154,7 @@ data Pat id
 
   | SigPatOut       (LPat id)           -- Pattern with a type signature
                     Type
+                    [TyVar]             -- Instantiated wildcard variables
 
         ------------ Pattern coercions (translation only) ---------------
   | CoPat       HsWrapper               -- If co :: t1 ~ t2, p :: t2,
@@ -287,7 +288,7 @@ pprPat (SplicePat splice)   = pprUntypedSplice splice
 pprPat (QuasiQuotePat qq)   = ppr qq
 pprPat (CoPat co pat _)     = pprHsWrapper (ppr pat) co
 pprPat (SigPatIn pat ty)    = ppr pat <+> dcolon <+> ppr ty
-pprPat (SigPatOut pat ty)   = ppr pat <+> dcolon <+> ppr ty
+pprPat (SigPatOut pat ty _) = ppr pat <+> dcolon <+> ppr ty
 
 pprUserCon :: (OutputableBndr con, OutputableBndr id) => con -> HsConPatDetails id -> SDoc
 pprUserCon c (InfixCon p1 p2) = ppr p1 <+> pprInfixOcc c <+> ppr p2
@@ -419,7 +420,7 @@ isIrrefutableHsPat pat
     go1 (AsPat _ pat)       = go pat
     go1 (ViewPat _ pat _)   = go pat
     go1 (SigPatIn pat _)    = go pat
-    go1 (SigPatOut pat _)   = go pat
+    go1 (SigPatOut pat _ _) = go pat
     go1 (TuplePat pats _ _) = all go pats
     go1 (ListPat {}) = False
     go1 (PArrPat {})        = False     -- ?

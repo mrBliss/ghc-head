@@ -20,7 +20,8 @@ module RnTypes (
         -- Binding related stuff
         bindSigTyVarsFV, bindHsTyVars, rnHsBndrSig,
         extractHsTyRdrTyVars, extractHsTysRdrTyVars,
-        extractRdrKindSigVars, extractDataDefnKindVars, filterInScope
+        extractRdrKindSigVars, extractDataDefnKindVars,
+        extractWildcards, filterInScope
   ) where
 
 import {-# SOURCE #-} TcSplice( runQuasiQuoteType )
@@ -44,7 +45,7 @@ import BasicTypes       ( compareFixity, funTyFixity, negateFixity,
 import Outputable
 import FastString
 import Maybes
-import Data.List        ( nub )
+import Data.List        ( nub, nubBy )
 import Control.Monad    ( unless, when )
 
 #include "HsVersions.h"
@@ -291,15 +292,25 @@ rnHsTyKi isType doc ty@(HsExplicitTupleTy kis tys)
        ; (tys', fvs) <- rnLHsTypes doc tys
        ; return (HsExplicitTupleTy kis tys', fvs) }
 
+-- Wildcards should have been transformed into type variables with fresh names
+-- in renameSigs. Unless they occur in a pattern/expression signature.
+
+rnHsTyKi isType ExprWithTySigCtx HsWildcardTy
+  = ASSERT( isType )
+    do { uniq <- newUnique
+       ; let name = mkInternalName uniq (mkTyVarOcc "_") noSrcSpan
+       ; return (HsTyVar name, unitFV name) }
+
 rnHsTyKi _ _ HsWildcardTy
   = panic "HsWildCardTy in rnHsTyKi"
-  -- Unnamed wildcards should have been transformed into named
-  -- wildcards with fresh names in renameSigs.
 
-rnHsTyKi isType _ (HsNamedWildcardTy rdr_name)
-  = do { name <- rnTyVar isType rdr_name -- TODOT what to do?
-       ; return (HsNamedWildcardTy name, unitFV name) }
+rnHsTyKi isType ExprWithTySigCtx (HsNamedWildcardTy rdr_name)
+  = ASSERT( isType )
+    do { name <- rnTyVar isType rdr_name
+       ; return (HsTyVar name, unitFV name) }
 
+rnHsTyKi _ _ (HsNamedWildcardTy _)
+  = panic "HsNamedWildCardTy in rnHsTyKi"
 
 --------------
 rnTyVar :: Bool -> RdrName -> RnM Name
@@ -435,10 +446,15 @@ rnHsBndrSig doc (HsWB { hswb_cts = ty@(L loc _) }) thing_inside
                                                , not (tv `elemLocalRdrEnv` name_env) ]
        ; kv_names <- newLocalBndrsRn [L loc kv | kv <- kv_bndrs
                                                , not (kv `elemLocalRdrEnv` name_env) ]
+       ; (nwcs, awcs, ty') <- extractWildcards ty
+       ; let nwcs' = nubBy eqLocated $ filterOut (flip (elemLocalRdrEnv . unLoc) name_env) nwcs
        ; bindLocalNamesFV kv_names $
          bindLocalNamesFV tv_names $
-    do { (ty', fvs1) <- rnLHsType doc ty
-       ; (res, fvs2) <- thing_inside (HsWB { hswb_cts = ty', hswb_kvs = kv_names, hswb_tvs = tv_names })
+         bindLocalNamesFV awcs $
+         bindLocatedLocalsFV nwcs' $ \nwcs_new ->
+    do { (ty'', fvs1) <- rnLHsType doc ty'
+       ; (res, fvs2) <- thing_inside (HsWB { hswb_cts = ty'', hswb_kvs = kv_names,
+                                             hswb_tvs = tv_names, hswb_wcs = (nwcs_new ++ awcs) })
        ; return (res, fvs1 `plusFV` fvs2) } }
 
 overlappingKindVars :: HsDocContext -> [RdrName] -> SDoc
@@ -970,8 +986,10 @@ extract_lty (L _ ty) acc
       HsForAllTy _ tvs cx ty    -> extract_hs_tv_bndrs tvs acc $
                                    extract_lctxt cx   $
                                    extract_lty ty ([],[])
+      -- We deal with these to in a later stage, because they need to be
+      -- replaced by fresh HsTyVars.
       HsWildcardTy              -> acc
-      HsNamedWildcardTy tv      -> extract_tv tv acc
+      HsNamedWildcardTy _       -> acc
 
 extract_hs_tv_bndrs :: LHsTyVarBndrs RdrName -> FreeKiTyVars
                     -> FreeKiTyVars -> FreeKiTyVars
@@ -992,4 +1010,52 @@ extract_tv :: RdrName -> FreeKiTyVars -> FreeKiTyVars
 extract_tv tv acc
   | isRdrTyVar tv = case acc of (kvs,tvs) -> (kvs, tv : tvs)
   | otherwise     = acc
+
+-- Return the wildcards used in a type and transform unnamed wildcards
+-- to named wildcards with fresh names in the process.
+extractWildcards :: LHsType RdrName -> RnM ([Located RdrName], [Name], LHsType RdrName)
+extractWildcards = go
+  where
+    go orig@(L l ty) = case ty of
+      (HsForAllTy exp bndrs (L locCxt cxt) ty) ->
+        do (nwcs1, awcs1, ty')  <- extractWildcards ty
+           (nwcs2, awcs2, cxt') <- extList cxt
+           return (nwcs1 ++ nwcs2, awcs1 ++ awcs2,
+                   L l (HsForAllTy exp bndrs (L locCxt cxt') ty'))
+      (HsAppTy ty1 ty2)           -> go2 HsAppTy ty1 ty2
+      (HsFunTy ty1 ty2)           -> go2 HsFunTy ty1 ty2
+      (HsListTy ty)               -> go1 HsListTy ty
+      (HsPArrTy ty)               -> go1 HsPArrTy ty
+      (HsTupleTy con tys)         -> goList (HsTupleTy con) tys
+      (HsOpTy ty1 op ty2)         -> go2 (\t1 t2 -> HsOpTy t1 op t2) ty1 ty2
+      (HsParTy ty)                -> go1 HsParTy ty
+      (HsIParamTy n ty)           -> go1 (HsIParamTy n) ty
+      (HsEqTy ty1 ty2)            -> go2 HsEqTy ty1 ty2
+      (HsKindSig ty kind)         -> go2 HsKindSig ty kind
+      (HsDocTy ty doc)            -> go1 (flip HsDocTy doc) ty
+      (HsBangTy b ty)             -> go1 (HsBangTy b) ty
+      (HsExplicitListTy ptk tys)  -> goList (HsExplicitListTy ptk) tys
+      (HsExplicitTupleTy ptk tys) -> goList (HsExplicitTupleTy ptk) tys
+      HsWildcardTy -> do uniq <- newUnique
+                         let name = mkInternalName uniq (mkTyVarOcc "_") l
+                         return ([], [name], L l $ HsTyVar (nameRdrName name))
+      (HsNamedWildcardTy name) -> return ([L l name], [], L l $ HsTyVar name)
+      -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
+      _ -> return ([], [], orig)
+      where
+        go1 f t = do (nwcs, awcs, t') <- extractWildcards t
+                     return (nwcs, awcs, L l $ f t')
+        go2 f t1 t2 =
+          do (nwcs1, awcs1, t1') <- extractWildcards t1
+             (nwcs2, awcs2, t2') <- extractWildcards t2
+             return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, L l $ f t1' t2')
+        extList l = do rec_res <- mapM extractWildcards l
+                       let (nwcs, awcs, tys') =
+                             foldr (\(nwcs, awcs, ty) (nwcss, awcss, tys) ->
+                                     (nwcs ++ nwcss, awcs ++ awcss, ty : tys))
+                                   ([], [], []) rec_res
+                       return (nwcs, awcs, tys')
+        goList f tys = do (nwcs, awcs, tys') <- extList tys
+                          return (nwcs, awcs, L l $ f tys')
+
 \end{code}

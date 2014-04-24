@@ -155,12 +155,14 @@ data HsWithBndrs thing
   = HsWB { hswb_cts :: thing         -- Main payload (type or list of types)
          , hswb_kvs :: [Name]        -- Kind vars
          , hswb_tvs :: [Name]        -- Type vars
-    }                  
+         , hswb_wcs :: [Name]        -- Wildcards
+    }
   deriving (Data, Typeable)
 
 mkHsWithBndrs :: thing -> HsWithBndrs thing
 mkHsWithBndrs x = HsWB { hswb_cts = x, hswb_kvs = panic "mkHsTyWithBndrs:kvs"
-                                     , hswb_tvs = panic "mkHsTyWithBndrs:tvs" }
+                                     , hswb_tvs = panic "mkHsTyWithBndrs:tvs"
+                                     , hswb_wcs = panic "mkHsTyWithBndrs:wcs" }
 
 
 -- | These names are used early on to store the names of implicit

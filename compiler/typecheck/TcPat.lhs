@@ -42,6 +42,7 @@ import TcHsType
 import TysWiredIn
 import TcEvidence
 import TyCon
+import Type( tidyOpenType )
 import DataCon
 import PatSyn
 import ConLike
@@ -50,10 +51,13 @@ import BasicTypes hiding (SuccessFlag(..))
 import DynFlags
 import SrcLoc
 import Util
+import VarEnv( TidyEnv )
 import Outputable
 import FastString
 import Control.Monad
 import Maybes( isJust )
+import OrdList( snocOL )
+import Data.List( mapAccumL )
 \end{code}
 
 
@@ -186,7 +190,7 @@ findScopedTyVars hs_ty sig_ty inst_tvs
     (sig_tvs,_)  = tcSplitForAllTys sig_ty
 
 instance Outputable TcSigInfo where
-    ppr (TcSigInfo { sig_id = id, sig_tvs = tyvars, sig_theta = theta, sig_tau = tau})
+    ppr (TcSigInfo { sig_id = id, sig_tvs = tyvars, sig_theta = theta, sig_tau = tau })
         = ppr id <+> dcolon <+> vcat [ pprSigmaType (mkSigmaTy (map snd tyvars) theta tau)
                                      , ppr (map fst tyvars) ]
 
@@ -502,11 +506,14 @@ tc_pat penv (ViewPat expr pat _) overall_pat_ty thing_inside
 -- Type signatures in patterns
 -- See Note [Pattern coercions] below
 tc_pat penv (SigPatIn pat sig_ty) pat_ty thing_inside
-  = do	{ (inner_ty, tv_binds, wrap) <- tcPatSig (patSigCtxt penv) sig_ty pat_ty
-	; (pat', res) <- tcExtendTyVarEnv2 tv_binds $
-			 tc_lpat pat inner_ty penv thing_inside
-
-        ; return (mkHsWrapPat wrap (SigPatOut pat' inner_ty) pat_ty, res) }
+  = do { (inner_ty, tv_binds, nwc_binds, wrap) <- tcPatSig (patSigCtxt penv) sig_ty pat_ty
+       ; (pat', res) <- tcExtendTyVarEnv2 (tv_binds ++ nwc_binds) $
+                        tc_lpat pat inner_ty penv thing_inside
+       ; let reporter = reportInstantiatedWildcardsInPat (map snd nwc_binds)
+                        pat sig_ty pat_ty (patSigCtxt penv)
+       ; gbl_env <- getGblEnv
+       ; updMutVar (tcg_instantiation_reporters gbl_env) (`snocOL` reporter)
+       ; return (mkHsWrapPat wrap (SigPatOut pat' inner_ty (map snd nwc_binds)) pat_ty, res) }
 
 ------------------------
 -- Lists, tuples, arrays
@@ -616,6 +623,67 @@ unifyPatType :: TcType -> TcType -> TcM TcCoercion
 unifyPatType actual_ty expected_ty
   = do { coi <- unifyType actual_ty expected_ty
        ; return (mkTcSymCo coi) }
+
+reportInstantiatedWildcardsInPat ::
+  [TcTyVar] ->                  -- The wildcards (meta vars)
+  LPat Name ->                  -- The pattern
+  HsWithBndrs (LHsType Name) -> -- The partial expression signature
+  TcSigmaType ->                -- The final inferred type
+  UserTypeCtxt ->               -- Context for printing the error/trace
+                                -- message, currently the same message for
+                                -- both possibilities: BindPatSigCtxt or
+                                -- LamPatSigCtxt, but this can change in the
+                                -- future.
+  TidyEnv ->                    -- The TidyEnv to tidy the error/trace messages
+  TcM TidyEnv                   -- The extended TidyEnv
+reportInstantiatedWildcardsInPat wcs pat sig_ty inf_ty ctxt tidy_env
+  = do { dflags <- getDynFlags
+       -- By default, we report errors for wildcard instantiations in
+       -- partial pattern signatures, unless the PartialTypeSignatures
+       -- extension is on, in which case we accept the inferred types
+       -- and just add the instantiations to the trace.
+       ; let report = if xopt Opt_PartialTypeSignatures dflags
+                      then reportTrace
+                      else reportErr
+       -- We find all the instantiations by looking at the types the
+       -- wildcards (metas) were unified with.
+       ; instantiations <- forM wcs $ \tv -> do
+         { details <- readMutVar (metaTvRef tv)
+         ; case details of
+             Flexi       -> pprPanic "Free meta variable found" $ ppr tv
+             Indirect ty -> return (tv, ty) }
+       ; let (tidy_env', tidy_instantiations) = tidy tidy_env instantiations
+       ; mapM_ (uncurry report) tidy_instantiations
+       ; return tidy_env' }
+  where
+    (L loc _) = hswb_cts sig_ty
+    -- Tidy just the types, not the tyvars
+    tidy tidy_env tvtys = mapAccumL tidyTvTy tidy_env tvtys
+    tidyTvTy env (tv, ty) = let (env', ty') = tidyOpenType env ty
+                            in (env', (tv, ty'))
+
+    completeTy ty = hang (ptext (sLit "The complete inferred type is:"))
+                    2 (ppr ty)
+
+    hintEnable = ptext (sLit "To use the inferred type,") <+>
+                 ptext (sLit "enable PartialTypeSignatures")
+
+    msgInstantiated tv ty = hang (ptext (sLit "Instantiated wildcard") <+>
+                                  quotes (ppr tv) <+> ptext (sLit "to:") <+> ppr ty)
+                            2 (vcat [ ptext (sLit "in") <+>
+                                      pprUserTypeCtxt ctxt <>
+                                      colon <+> ppr (SigPatIn pat sig_ty)
+                                    , ptext (sLit "at") <+> ppr loc ])
+
+    reportErr tv ty = do
+      final_ty <- zonkTcType inf_ty
+      setSrcSpan (getSrcSpan tv) $ addErrTc $
+        msgInstantiated tv ty $$ completeTy final_ty $$ hintEnable
+
+    reportTrace tv ty = do
+      final_ty <- zonkTcType inf_ty
+      setSrcSpan (getSrcSpan tv) $ traceTc "" $
+        msgInstantiated tv ty $$ completeTy final_ty
 \end{code}
 
 Note [Hopping the LIE in lazy patterns]

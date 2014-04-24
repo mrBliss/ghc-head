@@ -545,7 +545,8 @@ rnFamInstDecl doc mb_cls tycon pats payload rnPayload
 
        ; let all_fvs = fvs `addOneFV` unLoc tycon'
        ; return (tycon',
-                 HsWB { hswb_cts = pats', hswb_kvs = kv_names, hswb_tvs = tv_names },
+                 HsWB { hswb_cts = pats', hswb_kvs = kv_names,
+                        hswb_tvs = tv_names, hswb_wcs = [] },
                  payload',
                  all_fvs) }
              -- type instance => use, hence addOneFV

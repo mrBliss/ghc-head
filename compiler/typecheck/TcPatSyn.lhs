@@ -340,9 +340,9 @@ tcPatToExpr lhsVars = go
     go1   (LitPat lit)             = return $ HsLit lit
     go1   (NPat n Nothing _)       = return $ HsOverLit n
     go1   (NPat n (Just neg) _)    = return $ noLoc neg `HsApp` noLoc (HsOverLit n)
-    go1   (SigPatIn pat (HsWB ty _ _))
+    go1   (SigPatIn pat (HsWB ty _ _ wcs))
       = do { expr <- go pat
-           ; return $ ExprWithTySig expr ty }
+           ; return $ ExprWithTySig expr ty wcs }
     go1   (ConPatOut{})            = panic "ConPatOut in output of renamer"
     go1   (SigPatOut{})            = panic "SigPatOut in output of renamer"
     go1   (CoPat{})                = panic "CoPat in output of renamer"
@@ -378,7 +378,7 @@ tcCollectEx = return . go
     go1 (QuasiQuotePat qq)  = pprPanic "TODO: tcInstPatSyn QuasiQuotePat" $ ppr qq
     go1 con@ConPatOut{}     = mappend (mkVarSet (pat_tvs con), pat_dicts con) $
                                  goConDetails $ pat_args con
-    go1 (SigPatOut p _)     = go p
+    go1 (SigPatOut p _ _)   = go p
     go1 (CoPat _ p _)       = go1 p
     go1 (NPlusKPat n k geq subtract)
       = pprPanic "TODO: NPlusKPat" $ ppr n $$ ppr k $$ ppr geq $$ ppr subtract

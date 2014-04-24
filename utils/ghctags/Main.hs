@@ -303,7 +303,7 @@ boundThings modname lbinding =
                NPat _ _ _ -> tl -- form of literal pattern?
                NPlusKPat id _ _ _ -> thing id : tl
                SigPatIn p _ -> patThings p tl
-               SigPatOut p _ -> patThings p tl
+               SigPatOut p _ _ -> patThings p tl
                _ -> error "boundThings"
         conArgs (PrefixCon ps) tl = foldr patThings tl ps
         conArgs (RecCon (HsRecFields { rec_flds = flds })) tl

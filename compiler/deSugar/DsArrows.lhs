@@ -1169,7 +1169,7 @@ collectl (L _ pat) bndrs
     go (NPlusKPat (L _ n) _ _ _)  = n : bndrs
 
     go (SigPatIn pat _)           = collectl pat bndrs
-    go (SigPatOut pat _)          = collectl pat bndrs
+    go (SigPatOut pat _ _)        = collectl pat bndrs
     go (CoPat _ pat _)            = collectl (noLoc pat) bndrs
     go (ViewPat _ pat _)          = collectl pat bndrs
     go p@(SplicePat {})           = pprPanic "collectl/go" (ppr p)

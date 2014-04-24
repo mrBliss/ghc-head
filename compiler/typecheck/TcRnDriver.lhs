@@ -367,7 +367,9 @@ tcRnSrcDecls boot_iface decls
         gbl_env <- getGblEnv ;
         wildcard_instantiation_reporters <-
           readMutVar (tcg_instantiation_reporters gbl_env) ;
-        sequence_ (fromOL wildcard_instantiation_reporters) ;
+        tidy_env <- tcInitTidyEnv ;
+        -- We thread a single TidyEnv through all reporters
+        foldlM_ (flip ($)) tidy_env (fromOL wildcard_instantiation_reporters) ;
         writeMutVar (tcg_instantiation_reporters gbl_env) nilOL ;
 
         let { final_type_env = extendTypeEnvWithIds type_env bind_ids
@@ -1449,7 +1451,7 @@ getGhciStepIO = do
                                     , hsq_kvs = [] })
                             (noLoc [])
                             (nlHsFunTy ghciM ioM)
-        step   = noLoc $ ExprWithTySig (nlHsVar ghciStepIoMName) stepTy
+        step   = noLoc $ ExprWithTySig (nlHsVar ghciStepIoMName) stepTy []
     return step
 
 isGHCiMonad :: HscEnv -> String -> IO (Messages, Maybe Name)

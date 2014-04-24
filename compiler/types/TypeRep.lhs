@@ -56,7 +56,8 @@ module TypeRep (
         tidyOpenTyVar, tidyOpenTyVars,
         tidyTyVarOcc,
         tidyTopType,
-        tidyKind, 
+        tidyKind,
+        tidyTypeWithEnv,
 
         -- Substitutions
         TvSubst(..), TvSubstEnv
@@ -913,6 +914,25 @@ tidyOpenType env ty
 ---------------
 tidyOpenTypes :: TidyEnv -> [Type] -> (TidyEnv, [Type])
 tidyOpenTypes env tys = mapAccumL tidyOpenType env tys
+
+-- | Tidies the given type, reusing the tidied types in the TidyEnv for the
+-- type variables, including the bound variables.
+tidyTypeWithEnv :: TidyEnv -> Type -> (TidyEnv, Type)
+tidyTypeWithEnv env ty = case ty of
+  l@(LitTy _)          -> (env, l)
+  (TyVarTy tv)         -> let (env', tv') = tidyOpenTyVar env tv
+                          in (env', TyVarTy tv')
+  (TyConApp tycon tys) -> let (env', args) = mapAccumL tidyTypeWithEnv env tys
+                          in (env', args `seqList` TyConApp tycon args)
+  (AppTy fun arg)      -> let (env1, fun') = tidyTypeWithEnv env fun
+                              (env2, arg') = tidyTypeWithEnv env1 arg
+                          in (env2, (AppTy $! fun') $! arg')
+  (FunTy fun arg)      -> let (env1, fun') = tidyTypeWithEnv env fun
+                              (env2, arg') = tidyTypeWithEnv env1 arg
+                          in (env2, (FunTy $! fun') $! arg')
+  (ForAllTy tv ty)     -> let (env1, tv') = tidyOpenTyVar env tv
+                              (env2, ty') = tidyTypeWithEnv env1 ty
+                          in (env2, ForAllTy tv' $! ty')
 
 ---------------
 -- | Calls 'tidyType' on a top-level type (i.e. with an empty tidying environment)

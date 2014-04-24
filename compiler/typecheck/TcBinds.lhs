@@ -31,7 +31,7 @@ import TcPat
 import TcMType
 import PatSyn
 import ConLike
-import Type( tidyOpenType, tidyOpenTypes, tidyTyVarBndrs )
+import Type( tidyOpenType, tidyOpenTypes, tidyTypeWithEnv )
 import FunDeps( growThetaTyVars )
 import TyCon
 import TcType
@@ -661,17 +661,10 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
 
        ; traceTc "Binding:" (ppr final_closed $$
                              ppr (poly_id, idType poly_id))
-       ; tidy_env <- tcInitTidyEnv
-       -- The tidy_env returned by tidyOpenType is empty for a closed
-       -- type, so we tidy the type variables separately, as we'll
-       -- need them later in tidy_env, for
-       -- reportInstantiatedWildcards, where we will tidy individual
-       -- free type variables.
-       ; let (tvs, _)      = tcSplitForAllTys (idType poly_id)
-             (tidy_env', _) = tidyTyVarBndrs tidy_env tvs
-             (tidy_env'', tidy_poly_ty) = tidyOpenType tidy_env' (idType poly_id)
+
        ; extra_cts <- zonkTcThetaType (map evVarPred givens)
-       ; let reporter = reportInstantiatedWildcards sig tidy_poly_ty extra_cts skol_info tidy_env''
+       ; let reporter = reportInstantiatedWildcards sig (idType poly_id)
+                                                    extra_cts skol_info
        ; gbl_env <- getGblEnv
        -- Save the reporter as a delayed monadic computation until after the
        -- final types are known.
@@ -679,10 +672,16 @@ tcPolyCombi rec_tc prag_fn sig@(TcSigInfo { sig_id = sig_poly_id, sig_tvs = sig_
        ; return (unitBag abs_bind, [poly_id], final_closed) }
          -- poly_id is guaranteed to be zonked by mkExport
 
-reportInstantiatedWildcards :: TcSigInfo -> Type -> ThetaType -> SkolemInfo -> TidyEnv -> TcM ()
+reportInstantiatedWildcards ::
+  TcSigInfo ->              -- The partial signature
+  Type ->                   -- The final inferred type
+  ThetaType ->              -- The extra constraints that were inferred
+  SkolemInfo ->             -- SkolemInfo for printing the error/trace message
+  TidyEnv ->                -- The TidyEnv to tidy the error/trace messages
+  TcM TidyEnv               -- The extended TidyEnv
 reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
                                          sig_nwcs = nwcs, sig_extra = extra })
-                            inf_ty extra_cts skol_info tidy_env
+                            inf_ty extra_cts skol_info tidy_env0
   = do { dflags <- getDynFlags
        -- By default, we report errors for wildcard instantiations in
        -- partial type signatures, unless the PartialTypeSignatures
@@ -708,22 +707,26 @@ reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
        -- instead of 'forall tw_ tw_ . ...' (notice the '1'). The
        -- tidy_env used for this will be threaded through the rest of
        -- this function.
-       ; let (tidy_env', tidy_instantiations) = tidy tidy_env instantiations
+       ; let (tidy_env2, tidy_instantiations) = tidy tidy_env1 instantiations
        -- Do the actual reporting of wildcard instantiations
        ; mapM_ (uncurry report) tidy_instantiations
        -- Report the extra constraints that were inferred
        ; case extra of
-           Nothing  -> return ()
-           Just loc -> let (_, tidy_extra_cts) = tidyOpenTypes tidy_env' extra_cts
-                       in reportExtra tidy_extra_cts loc }
+           Nothing  -> return tidy_env2
+           Just loc -> do { let (tidy_env3, tidy_extra_cts) =
+                                  tidyOpenTypes tidy_env2 extra_cts
+                          ; reportExtra tidy_extra_cts loc
+                          ; return tidy_env3 } }
     where
+      (tidy_env1, tidy_inf_ty) = tidyTypeWithEnv tidy_env0 inf_ty
+
       -- Tidy just the types, not the tyvars
       tidy tidy_env tvtys = mapAccumL tidyTvTy tidy_env tvtys
       tidyTvTy env (tv, ty) = let (env', ty') = tidyOpenType env ty
                               in (env', (tv, ty'))
 
       completeTy = hang (ptext (sLit "The complete inferred type is:"))
-                   2 (pprPrefixOcc id <+> dcolon <+> ppr inf_ty)
+                   2 (pprPrefixOcc id <+> dcolon <+> ppr tidy_inf_ty)
 
       hintEnable = ptext (sLit "To use the inferred type,") <+>
                    ptext (sLit "enable PartialTypeSignatures")
@@ -740,16 +743,14 @@ reportInstantiatedWildcards (TcSigInfo { sig_loc = loc, sig_id = id,
                                    , ptext (sLit "at") <+> ppr loc])
 
       reportErr tv ty =
-        do { let msg = msgInstantiated tv ty $$ completeTy $$ hintEnable
-           ; err <- mkLongErrAt (getSrcSpan tv) msg empty
-           ; reportError err }
+        setSrcSpan (getSrcSpan tv) $
+        addErrTc $ msgInstantiated tv ty $$ completeTy $$ hintEnable
 
       reportTrace tv ty = traceTc "" $ msgInstantiated tv ty $$ completeTy
 
       reportExtraErr extra_cts loc =
-        do { let msg = msgExtra extra_cts $$ completeTy $$ hintEnable
-           ; err <- mkLongErrAt loc msg empty
-           ; reportError err }
+        setSrcSpan loc $
+        addErrTc $ msgExtra extra_cts $$ completeTy $$ hintEnable
 
       reportExtraTrace extra_cts _ = traceTc "" $ msgExtra extra_cts $$ completeTy
 

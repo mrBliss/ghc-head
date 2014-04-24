@@ -35,7 +35,7 @@ import {-# SOURCE #-} RnExpr( rnLExpr, rnStmts )
 import HsSyn
 import TcRnMonad
 import TcEvidence     ( emptyTcEvBinds )
-import RnTypes        ( bindSigTyVarsFV, rnHsSigType, rnLHsType, checkPrecMatch, rnContext )
+import RnTypes        ( bindSigTyVarsFV, rnHsSigType, rnLHsType, checkPrecMatch, rnContext, extractWildcards )
 import RnPat
 import RnNames
 import RnEnv
@@ -44,7 +44,7 @@ import Module
 import Name
 import NameEnv
 import NameSet
-import RdrName          ( RdrName, rdrNameOcc, nameRdrName, elemLocalRdrEnv )
+import RdrName          ( RdrName, rdrNameOcc, elemLocalRdrEnv )
 import SrcLoc
 import ListSetOps	( findDupsEq )
 import BasicTypes	( RecFlag(..) )
@@ -52,12 +52,11 @@ import Digraph		( SCC(..) )
 import Bag
 import Outputable
 import FastString
-import Data.List	( partition, sort )
+import Data.List	( partition, sort, nubBy )
 import Maybes		( orElse )
 import Util             ( filterOut )
 import Control.Monad
 import Data.Traversable ( traverse )
-import Data.List        ( nubBy )
 \end{code}
 
 -- ToDo: Put the annotations into the monad, so that they arrive in the proper
@@ -747,50 +746,6 @@ renameSigs ctxt sigs
 
 	; return (good_sigs, sig_fvs) } 
 
-
--- Return the wildcards used in a type and transform unnamed wildcards
--- to named wildcards with fresh names in the process.
-extractWildcards :: LHsType RdrName -> RnM ([Located RdrName], [Name], LHsType RdrName)
-extractWildcards = go
-  where
-    go orig@(L l ty) = case ty of
-      (HsForAllTy exp bndrs (L locCxt cxt) ty) ->
-        do (nwcs1, awcs1, ty')  <- extractWildcards ty
-           (nwcs2, awcs2, cxt') <- extList cxt
-           return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, L l (HsForAllTy exp bndrs (L locCxt cxt') ty'))
-      (HsAppTy ty1 ty2)           -> go2 HsAppTy ty1 ty2
-      (HsFunTy ty1 ty2)           -> go2 HsFunTy ty1 ty2
-      (HsListTy ty)               -> go1 HsListTy ty
-      (HsPArrTy ty)               -> go1 HsPArrTy ty
-      (HsTupleTy con tys)         -> goList (HsTupleTy con) tys
-      (HsOpTy ty1 op ty2)         -> go2 (\t1 t2 -> HsOpTy t1 op t2) ty1 ty2
-      (HsParTy ty)                -> go1 HsParTy ty
-      (HsIParamTy n ty)           -> go1 (HsIParamTy n) ty
-      (HsEqTy ty1 ty2)            -> go2 HsEqTy ty1 ty2
-      (HsKindSig ty kind)         -> go2 HsKindSig ty kind
-      (HsDocTy ty doc)            -> go1 (flip HsDocTy doc) ty
-      (HsBangTy b ty)             -> go1 (HsBangTy b) ty
-      (HsExplicitListTy ptk tys)  -> goList (HsExplicitListTy ptk) tys
-      (HsExplicitTupleTy ptk tys) -> goList (HsExplicitTupleTy ptk) tys
-      HsWildcardTy -> do uniq <- newUnique
-                         let name = mkInternalName uniq (mkTyVarOcc "_") l
-                         return ([], [name], L l $ HsTyVar (nameRdrName name))
-      (HsNamedWildcardTy name) -> return ([L l name], [], L l $ HsTyVar name)
-      -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
-      _ -> return ([], [], orig)
-      where
-        go1 f t = do { (nwcs, awcs, t') <- extractWildcards t; return (nwcs, awcs, L l $ f t') }
-        go2 f t1 t2 =
-          do (nwcs1, awcs1, t1') <- extractWildcards t1
-             (nwcs2, awcs2, t2') <- extractWildcards t2
-             return (nwcs1 ++ nwcs2, awcs1 ++ awcs2, L l $ f t1' t2')
-        extList l = do rec_res <- mapM extractWildcards l
-                       let (nwcs, awcs, tys') =
-                             foldr (\(nwcs, awcs, ty) (nwcss, awcss, tys) -> (nwcs ++ nwcss, awcs ++ awcss, ty : tys))
-                                   ([], [], []) rec_res
-                       return (nwcs, awcs, tys')
-        goList f tys = do (nwcs, awcs, tys') <- extList tys
-                          return (nwcs, awcs, L l $ f tys')
 
 ----------------------
 -- We use lookupSigOccRn in the signatures, which is a little bit unsatisfactory

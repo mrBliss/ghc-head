@@ -617,7 +617,7 @@ cvtl e = wrapL (cvt e)
 
     cvt (ParensE e)      = do { e' <- cvtl e; return $ HsPar e' }
     cvt (SigE e t)       = do { e' <- cvtl e; t' <- cvtType t
-                              ; return $ ExprWithTySig e' t' }
+                              ; return $ ExprWithTySig e' t' [] }
     cvt (RecConE c flds) = do { c' <- cNameL c
                               ; flds' <- mapM cvtFld flds
                               ; return $ RecordCon c' noPostTcExpr (HsRecFields flds' Nothing)}

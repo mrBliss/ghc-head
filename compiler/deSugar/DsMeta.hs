@@ -996,7 +996,7 @@ repE (RecordUpd e flds _ _ _)
         fs <- repFields flds;
         repRecUpd x fs }
 
-repE (ExprWithTySig e ty) = do { e1 <- repLE e; t1 <- repLTy ty; repSigExp e1 t1 }
+repE (ExprWithTySig e ty _) = do { e1 <- repLE e; t1 <- repLTy ty; repSigExp e1 t1 }
 repE (ArithSeq _ _ aseq) =
   case aseq of
     From e              -> do { ds1 <- repLE e; repFrom ds1 }

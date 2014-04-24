@@ -349,12 +349,13 @@ data TcGblEnv
         tcg_safeInfer :: TcRef Bool,         -- Has the typechecker
                                              -- inferred this module
                                              -- as -XSafe (Safe Haskell)
-        tcg_instantiation_reporters :: TcRef (OrdList (TcM ()))
+        tcg_instantiation_reporters :: TcRef (OrdList (TidyEnv -> TcM TidyEnv))
                 -- ^ An OrdList (for the efficient snoc) of delayed monadic
-                -- computations that, when called, will report as errors or
-                -- trace (depending on the PartialTypeSignatures flag) the
-                -- inferred types the wildcards in partial type signatures
-                -- were instantiated to. Why store delayed monadic
+                -- computations that, when passed a TidyEnv, will report as
+                -- errors or trace (depending on the PartialTypeSignatures
+                -- flag) the inferred types the wildcards in partial type
+                -- signatures were instantiated to. The same TidyEnv is
+                -- threaded through all reporters. Why store delayed monadic
                 -- computations in the environment instead of reporting them
                 -- directly? The information required to report the
                 -- instantiations is lost before the final types are known.

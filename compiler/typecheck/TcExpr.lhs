@@ -64,6 +64,7 @@ import Control.Monad
 import Class(classTyCon)
 import Data.Function
 import Data.List
+import OrdList(snocOL)
 import qualified Data.Set as Set
 \end{code}
 
@@ -220,23 +221,26 @@ tcExpr e@(HsLamCase _ matches) res_ty
                   , ptext (sLit "requires")]
         match_ctxt = MC { mc_what = CaseAlt, mc_body = tcBody }
 
-tcExpr (ExprWithTySig expr sig_ty) res_ty
- = do { sig_tc_ty <- tcHsSigType ExprSigCtxt sig_ty
-
+tcExpr (ExprWithTySig expr sig_ty wcs) res_ty
+ = do { nwc_tvs <- mapM newWildcardVarMetaKind wcs
+      ; tcExtendTyVarEnv nwc_tvs $ do {
+        sig_tc_ty <- tcHsSigType ExprSigCtxt sig_ty
       ; (gen_fn, expr')
             <- tcGen ExprSigCtxt sig_tc_ty $ \ skol_tvs res_ty ->
 
                   -- Remember to extend the lexical type-variable environment
                   -- See Note [More instantiated than scoped] in TcBinds
-               tcExtendTyVarEnv2 
+               tcExtendTyVarEnv2
                   [(n,tv) | (Just n, tv) <- findScopedTyVars sig_ty sig_tc_ty skol_tvs] $
 
                tcMonoExprNC expr res_ty
 
-      ; let inner_expr = ExprWithTySigOut (mkLHsWrap gen_fn expr') sig_ty
-
+      ; let inner_expr = ExprWithTySigOut (mkLHsWrap gen_fn expr') sig_ty nwc_tvs
+            reporter = reportInstantiatedWildcardsInExpr nwc_tvs expr sig_ty res_ty
+      ; gbl_env <- getGblEnv
+      ; updMutVar (tcg_instantiation_reporters gbl_env) (`snocOL` reporter)
       ; (inst_wrap, rho) <- deeplyInstantiate ExprSigOrigin sig_tc_ty
-      ; tcWrapResult (mkHsWrap inst_wrap inner_expr) rho res_ty }
+      ; tcWrapResult (mkHsWrap inst_wrap inner_expr) rho res_ty } }
 
 tcExpr (HsType ty) _
   = failWithTc (text "Can't handle type argument:" <+> ppr ty)
@@ -1568,6 +1572,61 @@ badFieldsUpd rbinds data_cons
       map (\ item@(_, membershipRow) -> (countTrue membershipRow, item))
 
     countTrue = length . filter id
+
+reportInstantiatedWildcardsInExpr ::
+  [TcTyVar] ->              -- The wildcards (meta vars)
+  LHsExpr Name ->           -- The expression
+  LHsType Name ->           -- The partial expression signature
+  TcRhoType ->              -- The final inferred type
+  TidyEnv ->                -- The TidyEnv to tidy the error/trace messages
+  TcM TidyEnv               -- The extended TidyEnv
+reportInstantiatedWildcardsInExpr wcs expr sig_ty@(L loc _) inf_ty tidy_env
+  = do { dflags <- getDynFlags
+       -- By default, we report errors for wildcard instantiations in
+       -- partial expression signatures, unless the PartialTypeSignatures
+       -- extension is on, in which case we accept the inferred types
+       -- and just add the instantiations to the trace.
+       ; let report = if xopt Opt_PartialTypeSignatures dflags
+                      then reportTrace
+                      else reportErr
+       -- We find all the instantiations by looking at the types the
+       -- wildcards (metas) were unified with.
+       ; instantiations <- forM wcs $ \tv -> do
+         { details <- readMutVar (metaTvRef tv)
+         ; case details of
+             Flexi       -> pprPanic "Free meta variable found" $ ppr tv
+             Indirect ty -> return (tv, ty) }
+       ; let (tidy_env', tidy_instantiations) = tidy tidy_env instantiations
+       ; mapM_ (uncurry report) tidy_instantiations
+       ; return tidy_env' }
+  where
+    -- Tidy just the types, not the tyvars
+    tidy tidy_env tvtys = mapAccumL tidyTvTy tidy_env tvtys
+    tidyTvTy env (tv, ty) = let (env', ty') = tidyOpenType env ty
+                            in (env', (tv, ty'))
+
+    completeTy ty = hang (ptext (sLit "The complete inferred type is:"))
+                    2 (ppr ty)
+
+    hintEnable = ptext (sLit "To use the inferred type,") <+>
+                 ptext (sLit "enable PartialTypeSignatures")
+
+    msgInstantiated tv ty = hang (ptext (sLit "Instantiated wildcard") <+>
+                                  quotes (ppr tv) <+> ptext (sLit "to:") <+> ppr ty)
+                            2 (vcat [ ptext (sLit "in") <+>
+                                      pprUserTypeCtxt ExprSigCtxt <>
+                                      colon <+> ppr (ExprWithTySig expr sig_ty [])
+                                    , ptext (sLit "at") <+> ppr loc ])
+
+    reportErr tv ty = do
+      final_ty <- zonkTcType inf_ty
+      setSrcSpan (getSrcSpan tv) $ addErrTc $
+        msgInstantiated tv ty $$ completeTy final_ty $$ hintEnable
+
+    reportTrace tv ty = do
+      final_ty <- zonkTcType inf_ty
+      setSrcSpan (getSrcSpan tv) $ traceTc "" $
+        msgInstantiated tv ty $$ completeTy final_ty
 \end{code}
 
 Note [Finding the conflicting fields]

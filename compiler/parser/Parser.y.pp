@@ -1477,7 +1477,7 @@ quasiquote :: { Located (HsQuasiQuote RdrName) }
                             in sL (getLoc $1) (mkHsQuasiQuote quoterId (RealSrcSpan quoteSpan) quote) }
 
 exp   :: { LHsExpr RdrName }
-        : infixexp '::' sigtype         { LL $ ExprWithTySig $1 $3 }
+        : infixexp '::' sigtype         { LL $ ExprWithTySig $1 $3 [] }
         | infixexp '-<' exp             { LL $ HsArrApp $1 $3 placeHolderType HsFirstOrderApp True }
         | infixexp '>-' exp             { LL $ HsArrApp $3 $1 placeHolderType HsFirstOrderApp False }
         | infixexp '-<<' exp            { LL $ HsArrApp $1 $3 placeHolderType HsHigherOrderApp True }
