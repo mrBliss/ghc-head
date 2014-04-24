@@ -1,0 +1,6 @@
+TYPE SIGNATURES
+  f :: Bool -> Bool
+TYPE CONSTRUCTORS
+COERCION AXIOMS
+Dependent modules: []
+Dependent packages: [base, ghc-prim, integer-gmp]

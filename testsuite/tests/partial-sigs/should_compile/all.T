@@ -30,6 +30,8 @@ test('HigherRank2', normal, compile, ['-ddump-types'])
 test('Meltdown', normal, compile, ['-ddump-types'])
 test('NamedTyVar', normal, compile, ['-ddump-types'])
 test('PatBind', normal, compile, ['-ddump-types'])
+# TODOT BUG
+test('PatBind2', normal, compile, ['-ddump-types'])
 test('PatternSig', normal, compile, ['-ddump-types'])
 test('Recursive', normal, compile, ['-ddump-types'])
 test('ShowNamed', normal, compile, ['-ddump-types'])
