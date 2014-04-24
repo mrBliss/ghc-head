@@ -579,7 +579,8 @@ topdecl :: { OrdList (LHsDecl RdrName) }
         | inst_decl                             { unitOL (L1 (InstD (unLoc $1))) }
         | stand_alone_deriving                  { unitOL (LL (DerivD (unLoc $1))) }
         | role_annot                            { unitOL (L1 (RoleAnnotD (unLoc $1))) }
-        | 'default' '(' comma_types0 ')'        { unitOL (LL $ DefD (DefaultDecl $3)) }
+        | 'default' '(' comma_types0 ')'        {% do { def <- checkValidDefaults $3
+                                                      ; return $ unitOL (LL $ DefD def) } }
         | 'foreign' fdecl                       { unitOL (LL (unLoc $2)) }
         | '{-# DEPRECATED' deprecations '#-}'   { $2 }
         | '{-# WARNING' warnings '#-}'          { $2 }
