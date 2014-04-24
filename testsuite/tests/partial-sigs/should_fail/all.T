@@ -1,6 +1,5 @@
 test('AnnotatedConstraint', normal, compile_fail, [''])
 test('AnnotatedConstraintNotForgotten', normal, compile_fail, [''])
-# TODOT replace `_` by `tw_`?
 test('Defaulting1MROff', normal, compile_fail, [''])
 test('ExtraConstraintsWildcardNotEnabled', normal, compile_fail, [''])
 test('ExtraConstraintsWildcardNotLast', normal, compile_fail, [''])

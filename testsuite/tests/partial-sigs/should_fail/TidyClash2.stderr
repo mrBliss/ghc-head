@@ -1,37 +1,37 @@
 
-TidyClash2.hs:4:22:
-    Instantiated wildcard ‘_’ to: tw_1
-      in the type signature for barry :: _ -> _ -> tw_
-      at TidyClash2.hs:4:10-34
+TidyClash2.hs:4:21:
+    Instantiated wildcard ‘_’ to: w_1
+      in the type signature for barry :: _ -> _ -> w_
+      at TidyClash2.hs:4:10-32
     The complete inferred type is:
-      barry :: forall tw_ tw_1 tw_2. tw_1 -> tw_2 -> tw_
+      barry :: forall w_ w_1 w_2. w_1 -> w_2 -> w_
     To use the inferred type, enable PartialTypeSignatures
 
-TidyClash2.hs:4:27:
-    Instantiated wildcard ‘_’ to: tw_2
-      in the type signature for barry :: _ -> _ -> tw_
-      at TidyClash2.hs:4:10-34
+TidyClash2.hs:4:26:
+    Instantiated wildcard ‘_’ to: w_2
+      in the type signature for barry :: _ -> _ -> w_
+      at TidyClash2.hs:4:10-32
     The complete inferred type is:
-      barry :: forall tw_ tw_1 tw_2. tw_1 -> tw_2 -> tw_
+      barry :: forall w_ w_1 w_2. w_1 -> w_2 -> w_
     To use the inferred type, enable PartialTypeSignatures
 
 TidyClash2.hs:5:13:
-    Instantiated wildcard ‘_’ to: tw_1
+    Instantiated wildcard ‘_’ to: w_1
       in a pattern type signature: x :: _
       at TidyClash2.hs:5:13
-    The complete inferred type is: tw_1
+    The complete inferred type is: w_1
     To use the inferred type, enable PartialTypeSignatures
 
 TidyClash2.hs:5:22:
-    Instantiated wildcard ‘_’ to: tw_2
+    Instantiated wildcard ‘_’ to: w_2
       in a pattern type signature: y :: _
       at TidyClash2.hs:5:22
-    The complete inferred type is: tw_2
+    The complete inferred type is: w_2
     To use the inferred type, enable PartialTypeSignatures
 
 TidyClash2.hs:5:40:
-    Instantiated wildcard ‘_’ to: tw_
+    Instantiated wildcard ‘_’ to: w_
       in an expression type signature: undefined :: _
       at TidyClash2.hs:5:40
-    The complete inferred type is: tw_
+    The complete inferred type is: w_
     To use the inferred type, enable PartialTypeSignatures

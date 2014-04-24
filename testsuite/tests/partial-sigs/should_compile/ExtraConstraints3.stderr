@@ -109,11 +109,11 @@ TYPE SIGNATURES
   mapM_ ::
     forall a (m :: * -> *) b. Monad m => (a -> m b) -> [a] -> m ()
   max :: forall a. Ord a => a -> a -> a
-  maxBound :: forall tw_. Bounded tw_ => tw_
+  maxBound :: forall w_. Bounded w_ => w_
   maximum :: forall a. Ord a => [a] -> a
   maybe :: forall b a. b -> (a -> b) -> Maybe a -> b
   min :: forall a. Ord a => a -> a -> a
-  minBound :: forall tw_. Bounded tw_ => tw_
+  minBound :: forall w_. Bounded w_ => w_
   minimum :: forall a. Ord a => [a] -> a
   mod :: forall a. Integral a => a -> a -> a
   negate :: forall a. Num a => a -> a
@@ -123,7 +123,7 @@ TYPE SIGNATURES
   odd :: forall a. Integral a => a -> Bool
   or :: [Bool] -> Bool
   otherwise :: Bool
-  pi :: forall tw_. Floating tw_ => tw_
+  pi :: forall w_. Floating w_ => w_
   pred :: forall a. Enum a => a -> a
   print :: forall a. Show a => a -> IO ()
   product :: forall a. Num a => [a] -> a
@@ -186,7 +186,7 @@ TYPE SIGNATURES
   toRational :: forall a. Real a => a -> Rational
   truncate :: forall a b. (RealFrac a, Integral b) => a -> b
   uncurry :: forall a b c. (a -> b -> c) -> (a, b) -> c
-  undefined :: forall tw_. tw_
+  undefined :: forall w_. w_
   unlines :: [String] -> String
   until :: forall a. (a -> Bool) -> (a -> a) -> a -> a
   unwords :: [String] -> String

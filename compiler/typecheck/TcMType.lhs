@@ -330,7 +330,7 @@ newMetaTyVar meta_info kind
         ; let name = mkTcTyVarName uniq s
               s = case meta_info of
                         PolyTv      -> fsLit "s"
-                        TauTv True  -> fsLit "tw"
+                        TauTv True  -> fsLit "w"
                         TauTv False -> fsLit "t"
                         SigTv       -> fsLit "a"
 	; newNamedMetaTyVar name meta_info kind }
@@ -619,7 +619,7 @@ skolemiseUnboundMetaTyVar tv details
     generaliseWildcardVarName :: OccName -> OccName
     generaliseWildcardVarName name
       | startsWithUnderscore name = mkOccNameFS (occNameSpace name)
-                                      (appendFS (fsLit "tw") (occNameFS name))
+                                      (appendFS (fsLit "w") (occNameFS name))
     generaliseWildcardVarName name = name
 \end{code}
 
