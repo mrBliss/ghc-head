@@ -613,7 +613,7 @@ rep_sigs' sigs = do { sigs1 <- mapM rep_sig sigs ;
 rep_sig :: LSig Name -> DsM [(SrcSpan, Core TH.DecQ)]
         -- Singleton => Ok
         -- Empty     => Too hard, signature ignored
-rep_sig (L loc (TypeSig nms ty _ _))  = mapM (rep_ty_sig loc ty) nms -- TODOT what about the extra-constraints wildcard?
+rep_sig (L loc (TypeSig nms ty _ _))  = mapM (rep_ty_sig loc ty) nms
 rep_sig (L _   (GenericSig nm _))     = failWithDs msg
   where msg = vcat  [ ptext (sLit "Illegal default signature for") <+> quotes (ppr nm)
                     , ptext (sLit "Default signatures are not supported by Template Haskell") ]

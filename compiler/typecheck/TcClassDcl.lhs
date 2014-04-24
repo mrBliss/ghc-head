@@ -119,7 +119,6 @@ tcClassSigs clas sigs def_methods
        ; traceTc "tcClassSigs 2" (ppr clas)
        ; return (op_info, gen_dm_env) }
   where
-    -- TODOT: check/enforce that extra == false and wcs == []
     vanilla_sigs = [L loc (nm,ty) | L loc (TypeSig    nm ty _ _) <- sigs]
     gen_sigs     = [L loc (nm,ty) | L loc (GenericSig nm ty) <- sigs]
     dm_bind_names :: [Name]	-- These ones have a value binding in the class decl
