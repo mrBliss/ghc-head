@@ -904,7 +904,8 @@ checkValidDefaults tys
 checkPartialTypeSignature :: LHsType RdrName -> P (LHsType RdrName, Maybe SrcSpan)
 checkPartialTypeSignature fullTy = case fullTy of
 
-  (L l (HsForAllTy flag bndrs (L lc ctxt) ty)) -> do
+  (L l (HsForAllTy flag bndrs (L lc ctxtP) ty)) -> do
+    let ctxt = map ignoreParens ctxtP
     -- Check that the type doesn't contain any more extra-constraints wildcards
     checkNoExtraConstraintsWildcard ty
     -- Named extra-constraints wildcards aren't allowed
@@ -946,6 +947,9 @@ checkPartialTypeSignature fullTy = case fullTy of
     return (ty, Nothing)
 
   where
+    ignoreParens (L _ (HsParTy ty)) = ty
+    ignoreParens ty                 = ty
+
     firstMatch :: (HsType a -> Bool) -> HsContext a -> Maybe (LHsType a)
     firstMatch pred ctxt = listToMaybe (filter (pred . unLoc) ctxt)
 

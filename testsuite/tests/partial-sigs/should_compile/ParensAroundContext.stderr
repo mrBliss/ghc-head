@@ -1,0 +1,6 @@
+TYPE SIGNATURES
+  f :: forall a. Eq a => a -> a -> Bool
+TYPE CONSTRUCTORS
+COERCION AXIOMS
+Dependent modules: []
+Dependent packages: [base, ghc-prim, integer-gmp]

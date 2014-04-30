@@ -29,6 +29,7 @@ test('HigherRank1', normal, compile, ['-ddump-types'])
 test('HigherRank2', normal, compile, ['-ddump-types'])
 test('Meltdown', normal, compile, ['-ddump-types'])
 test('NamedTyVar', normal, compile, ['-ddump-types'])
+test('ParensAroundContext', normal, compile, ['-ddump-types'])
 test('PatBind', normal, compile, ['-ddump-types'])
 # TODOT BUG
 test('PatBind2', normal, compile, ['-ddump-types'])
