@@ -629,7 +629,7 @@ mkSigTvFn sigs
   = \n -> lookupNameEnv env n `orElse` ([],[])
   where
     extractScopedTyVars :: LHsType Name -> [Name]
-    extractScopedTyVars (L _ (HsForAllTy Explicit ltvs _ _)) = hsLKiTyVarNames ltvs 
+    extractScopedTyVars (L _ (HsForAllTy Explicit _ ltvs _ _)) = hsLKiTyVarNames ltvs
     extractScopedTyVars _ = []
 
     env :: NameEnv ([Name],[Name])

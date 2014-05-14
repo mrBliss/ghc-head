@@ -674,7 +674,7 @@ pp_vanilla_decl_head :: OutputableBndr name
    -> HsContext name
    -> SDoc
 pp_vanilla_decl_head thing tyvars context
- = hsep [pprHsContext context, pprPrefixOcc (unLoc thing), ppr tyvars]
+ = hsep [pprHsContext False context, pprPrefixOcc (unLoc thing), ppr tyvars]
 
 pp_fam_inst_lhs :: OutputableBndr name
    => Located name
@@ -682,7 +682,7 @@ pp_fam_inst_lhs :: OutputableBndr name
    -> HsContext name
    -> SDoc
 pp_fam_inst_lhs thing (HsWB { hswb_cts = typats }) context -- explicit type patterns
-   = hsep [ pprHsContext context, pprPrefixOcc (unLoc thing)
+   = hsep [ pprHsContext False context, pprPrefixOcc (unLoc thing)
           , hsep (map (pprParendHsType.unLoc) typats)]
 
 pprTyClDeclFlavour :: TyClDecl a -> SDoc
@@ -862,7 +862,7 @@ pprConDecl :: OutputableBndr name => ConDecl name -> SDoc
 pprConDecl (ConDecl { con_name = con, con_explicit = expl, con_qvars = tvs
                     , con_cxt = cxt, con_details = details
                     , con_res = ResTyH98, con_doc = doc })
-  = sep [ppr_mbDoc doc, pprHsForAll expl tvs cxt, ppr_details details]
+  = sep [ppr_mbDoc doc, pprHsForAll expl Nothing tvs cxt, ppr_details details]
   where
     ppr_details (InfixCon t1 t2) = hsep [ppr t1, pprInfixOcc (unLoc con), ppr t2]
     ppr_details (PrefixCon tys)  = hsep (pprPrefixOcc (unLoc con) : map (pprParendHsType . unLoc) tys)
@@ -872,13 +872,13 @@ pprConDecl (ConDecl { con_name = con, con_explicit = expl, con_qvars = tvs
                     , con_cxt = cxt, con_details = PrefixCon arg_tys
                     , con_res = ResTyGADT res_ty })
   = ppr con <+> dcolon <+> 
-    sep [pprHsForAll expl tvs cxt, ppr (foldr mk_fun_ty res_ty arg_tys)]
+    sep [pprHsForAll expl Nothing tvs cxt, ppr (foldr mk_fun_ty res_ty arg_tys)]
   where
     mk_fun_ty a b = noLoc (HsFunTy a b)
 
 pprConDecl (ConDecl { con_name = con, con_explicit = expl, con_qvars = tvs
                     , con_cxt = cxt, con_details = RecCon fields, con_res = ResTyGADT res_ty })
-  = sep [ppr con <+> dcolon <+> pprHsForAll expl tvs cxt, 
+  = sep [ppr con <+> dcolon <+> pprHsForAll expl Nothing tvs cxt,
          pprConDeclFields fields <+> arrow <+> ppr res_ty]
 
 pprConDecl decl@(ConDecl { con_details = InfixCon ty1 ty2, con_res = ResTyGADT {} })

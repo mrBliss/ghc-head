@@ -702,13 +702,7 @@ instance (OutputableBndr name) => Outputable (Sig name) where
     ppr sig = ppr_sig sig
 
 ppr_sig :: OutputableBndr name => Sig name -> SDoc
-ppr_sig (TypeSig vars ty extra _wcs) = pprVarSig (map unLoc vars) $ ppr (reintroExtraCtsWc ty)
-  where -- Temporarily add back the extra-constraints wildcard (if
-        -- extra is True) to the type, just for pretty-printing
-    reintroExtraCtsWc (L l (HsForAllTy f b ctxt t))
-      | Just _ <- extra = L l (HsForAllTy f b (fmap (++ [L l HsWildcardTy]) ctxt) t)
-    reintroExtraCtsWc t = t
-
+ppr_sig (TypeSig vars ty _ _wcs)  = pprVarSig (map unLoc vars) (ppr ty)
 ppr_sig (GenericSig vars ty)      = ptext (sLit "default") <+> pprVarSig (map unLoc vars) (ppr ty)
 ppr_sig (IdSig id)                = pprVarSig [id] (ppr (varType id))
 ppr_sig (FixSig fix_sig)          = ppr fix_sig
@@ -723,7 +717,7 @@ ppr_sig (PatSynSig name arg_tys ty prov req)
 
     pprCtx lctx = case unLoc lctx of
         [] -> Nothing
-        ctx -> Just (pprHsContextNoArrow ctx)
+        ctx -> Just (pprHsContextNoArrow False ctx)
 
 pprPatSynSig :: (OutputableBndr a)
              => a -> Bool -> HsPatSynDetails SDoc -> SDoc -> Maybe SDoc -> Maybe SDoc -> SDoc

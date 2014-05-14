@@ -198,7 +198,7 @@ tcHsInstHead user_ctxt lhs_ty@(L loc hs_ty)
        ; checkValidInstance user_ctxt lhs_ty inst_ty }
 
 tc_inst_head :: HsType Name -> TcM TcType
-tc_inst_head (HsForAllTy _ hs_tvs hs_ctxt hs_ty)
+tc_inst_head (HsForAllTy _ _ hs_tvs hs_ctxt hs_ty)
   = tcHsTyVarBndrs hs_tvs $ \ tvs -> 
     do { ctxt <- tcHsContext hs_ctxt
        ; ty   <- tc_lhs_type hs_ty ekConstraint    -- Body for forall has kind Constraint
@@ -395,7 +395,7 @@ tc_hs_type hs_ty@(HsAppTy ty1 ty2) exp_kind
     (fun_ty, arg_tys) = splitHsAppTys ty1 [ty2]
 
 --------- Foralls
-tc_hs_type hs_ty@(HsForAllTy _ hs_tvs context ty) exp_kind
+tc_hs_type hs_ty@(HsForAllTy _ _ hs_tvs context ty) exp_kind
   = tcHsTyVarBndrs hs_tvs $ \ tvs' -> 
     -- Do not kind-generalise here!  See Note [Kind generalisation]
     do { ctxt' <- tcHsContext context

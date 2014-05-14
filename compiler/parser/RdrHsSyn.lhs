@@ -175,7 +175,7 @@ checkNoPartialType context_msg ty =
   where err = ptext (sLit "Wildcard not allowed") $$ context_msg -- TODOT message
 
 data FoundWildcard = Found { location :: SrcSpan }
-                   | FoundNamed { location :: SrcSpan, name :: RdrName }
+                   | FoundNamed { location :: SrcSpan, _name :: RdrName }
 
 notFound :: [FoundWildcard]
 notFound = []
@@ -200,27 +200,27 @@ splitUnnamedNamed = partition (\f -> case f of { Found _ -> True ; _ -> False})
 
 findWildcards :: LHsType RdrName -> [FoundWildcard]
 findWildcards (L l ty) = case ty of
-    (HsForAllTy _ _ (L _ ctxt) x) -> concatMap go ctxt ++ go x
-    (HsAppTy x y)                 -> go x ++ go y
-    (HsFunTy x y)                 -> go x ++ go y
-    (HsListTy x)                  -> go x
-    (HsPArrTy x)                  -> go x
-    (HsTupleTy _ xs)              -> concatMap go xs
-    (HsOpTy x _ y)                -> go x ++ go y
-    (HsParTy x)                   -> go x
-    (HsIParamTy _ x)              -> go x
-    (HsEqTy x y)                  -> go x ++ go y
-    (HsKindSig x y)               -> go x ++ go y
-    (HsDocTy x _)                 -> go x
-    (HsBangTy _ x)                -> go x
-    (HsRecTy xs)                  -> concatMap (go . getBangType . cd_fld_type) xs
-    (HsExplicitListTy _ xs)       -> concatMap go xs
-    (HsExplicitTupleTy _ xs)      -> concatMap go xs
-    (HsWrapTy _ x)                -> go (noLoc x)
-    HsWildcardTy                  -> [Found l]
-    (HsNamedWildcardTy n)         -> [FoundNamed l n]
+    (HsForAllTy _ xtr _ (L _ ctxt) x) -> (map Found $ maybeToList xtr) ++ concatMap go ctxt ++ go x
+    (HsAppTy x y)                     -> go x ++ go y
+    (HsFunTy x y)                     -> go x ++ go y
+    (HsListTy x)                      -> go x
+    (HsPArrTy x)                      -> go x
+    (HsTupleTy _ xs)                  -> concatMap go xs
+    (HsOpTy x _ y)                    -> go x ++ go y
+    (HsParTy x)                       -> go x
+    (HsIParamTy _ x)                  -> go x
+    (HsEqTy x y)                      -> go x ++ go y
+    (HsKindSig x y)                   -> go x ++ go y
+    (HsDocTy x _)                     -> go x
+    (HsBangTy _ x)                    -> go x
+    (HsRecTy xs)                      -> concatMap (go . getBangType . cd_fld_type) xs
+    (HsExplicitListTy _ xs)           -> concatMap go xs
+    (HsExplicitTupleTy _ xs)          -> concatMap go xs
+    (HsWrapTy _ x)                    -> go (noLoc x)
+    HsWildcardTy                      -> [Found l]
+    (HsNamedWildcardTy n)             -> [FoundNamed l n]
     -- HsTyVar, HsQuasiQuoteTy, HsSpliceTy, HsCoreTy, HsTyLit
-    _                             -> notFound
+    _                                 -> notFound
   where go = findWildcards
 
 mkTyData :: SrcSpan
@@ -259,7 +259,7 @@ mkDataDefn new_or_data cType mcxt ksig data_cons maybe_deriv
                             , dd_kindSig = ksig
                             , dd_derivs = maybe_deriv }) }
     where errDeriv deriv = ptext (sLit "In the deriving items:") <+>
-                           pprHsContextNoArrow deriv
+                           pprHsContextNoArrow False deriv
 
 
 mkTySynonym :: SrcSpan
@@ -551,13 +551,17 @@ mkSimpleConDecl name qvars cxt details
 
 mkGadtDecl :: [Located RdrName]
            -> LHsType RdrName     -- Always a HsForAllTy
-           -> [ConDecl RdrName]
+           -> P [ConDecl RdrName]
 -- We allow C,D :: ty
 -- and expand it as if it had been
 --    C :: ty; D :: ty
 -- (Just like type signatures in general.)
-mkGadtDecl names (L _ (HsForAllTy imp qvars cxt tau))
-  = [mk_gadt_con name | name <- names]
+mkGadtDecl _ ty@(L _ (HsForAllTy _ (Just l) _ _ _))
+  = parseErrorSDoc l $
+    ptext (sLit "A constructor cannot have a partial type:") $$
+    ppr ty
+mkGadtDecl names (L _ (HsForAllTy imp _ qvars cxt tau))
+  = return [mk_gadt_con name | name <- names]
   where
     (details, res_ty)           -- See Note [Sorting out the result type]
       = case tau of
@@ -636,9 +640,9 @@ checkDatatypeContext (Just (L loc c))
          unless allowed $
              parseErrorSDoc loc
                  (text "Illegal datatype context (use DatatypeContexts):" <+>
-                  pprHsContext c)
+                  pprHsContext False c)
          mapM_ (checkNoPartialType err) c
-      where err = ptext (sLit "In the context:") <+> pprHsContextNoArrow c
+      where err = ptext (sLit "In the context:") <+> pprHsContextNoArrow False c
 
 checkRecordSyntax :: Outputable a => Located a -> P (Located a)
 checkRecordSyntax lr@(L loc r)
@@ -749,7 +753,7 @@ checkAPat msg loc e0 = do
                               -- but they aren't explicit forall points.  Hence
                               -- we have to remove the implicit forall here.
                               let t' = case t of
-                                         L _ (HsForAllTy Implicit _ (L _ []) ty) -> ty
+                                         L _ (HsForAllTy Implicit _ _ (L _ []) ty) -> ty
                                          other -> other
                               return (SigPatIn e (mkHsWithBndrs t'))
 
@@ -904,30 +908,25 @@ checkValidDefaults tys
 checkPartialTypeSignature :: LHsType RdrName -> P (LHsType RdrName, Maybe SrcSpan)
 checkPartialTypeSignature fullTy = case fullTy of
 
-  (L l (HsForAllTy flag bndrs (L lc ctxtP) ty)) -> do
+  (L l (HsForAllTy flag extra bndrs (L lc ctxtP) ty)) -> do
+    -- Remove parens around types in the context
     let ctxt = map ignoreParens ctxtP
     -- Check that the type doesn't contain any more extra-constraints wildcards
     checkNoExtraConstraintsWildcard ty
     -- Named extra-constraints wildcards aren't allowed
     whenM (firstMatch isNamedWildcardTy ctxt) $ \(L l _) -> err hintNamed l fullTy
-    -- If there's an extra-constraints wildcard, remove it from the
-    -- context and let extra be its location
-    let (rest, extra) = case () of
-          _ | null ctxt -> ([], Nothing)
-          _ | isWildcardTy $ unLoc (last ctxt) -> (init ctxt, Just $ getLoc (last ctxt))
-          _ | otherwise -> (ctxt, Nothing)
-    -- After removing the extra-constraints wildcard at the end of the
-    -- list, there should be no more left
-    whenM (firstMatch isWildcardTy rest) $ \(L l _) -> err hintLast l fullTy
+    -- There should be no more extra-constraints wildcards at the end of the
+    -- list
+    whenM (firstMatch isWildcardTy ctxt) $ \(L l _) -> err hintLast l fullTy
     -- Find all wildcards in the context and the monotype, then divide
     -- them in unnamed and named wildcards
-    let (unnamedInCtxt, namedInCtxt) = splitUnnamedNamed $ concatMap findWildcards rest
+    let (unnamedInCtxt, namedInCtxt) = splitUnnamedNamed $ concatMap findWildcards ctxt
         (_            , namedInTy)   = splitUnnamedNamed $ findWildcards ty
     -- Unnamed wildcards aren't allowed in the context
     case unnamedInCtxt of
       (Found lc : _) -> err hintUnnamedConstraint lc fullTy
       _            -> return ()
-    -- Calculcate the set of wildcards in the context that aren't in the monotype
+    -- Calculcate the set of named wildcards in the context that aren't in the monotype
     let namedWildcardsNotInMonotype = Set.fromList (namedWildcards namedInCtxt)
                                       `Set.difference`
                                       Set.fromList (namedWildcards namedInTy)
@@ -940,7 +939,8 @@ checkPartialTypeSignature fullTy = case fullTy of
       _                      -> return ()
 
     -- Return the checked type
-    return (L l (HsForAllTy flag bndrs (L lc rest) ty), extra)
+    return (L l (HsForAllTy flag extra bndrs (L lc ctxt) ty), extra)
+
 
   ty -> do
     checkNoExtraConstraintsWildcard ty
@@ -991,7 +991,8 @@ checkPartialTypeSignature fullTy = case fullTy of
         go (HsExplicitListTy _ xs)  = mapM_ go' xs
         go (HsExplicitTupleTy _ xs) = mapM_ go' xs
         go (HsWrapTy _ x)           = go' (noLoc x)
-        go (HsForAllTy _ _ (L _ ctxt) x)
+        go (HsForAllTy _ (Just l) _ _ _) = err hintNested l ty
+        go (HsForAllTy _ Nothing  _ (L _ ctxt) x)
           | Just (L l _) <- firstMatch isWildcardTy      ctxt = err hintNested l ty
           | Just (L l _) <- firstMatch isNamedWildcardTy ctxt = err hintNamed l ty
           | otherwise               = go' x

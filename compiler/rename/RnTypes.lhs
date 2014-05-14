@@ -114,7 +114,7 @@ rnHsKind = rnHsTyKi False
 
 rnHsTyKi :: Bool -> HsDocContext -> HsType RdrName -> RnM (HsType Name, FreeVars)
 
-rnHsTyKi isType doc (HsForAllTy Implicit _ lctxt@(L _ ctxt) ty)
+rnHsTyKi isType doc (HsForAllTy Implicit extra _ lctxt@(L _ ctxt) ty)
   = ASSERT( isType ) do
         -- Implicit quantifiction in source code (no kinds on tyvars)
         -- Given the signature  C => T  we universally quantify
@@ -135,9 +135,9 @@ rnHsTyKi isType doc (HsForAllTy Implicit _ lctxt@(L _ ctxt) ty)
            --   class C a where { op :: a -> a }
         tyvar_bndrs = userHsTyVarBndrs loc forall_tvs
 
-    rnForAll doc Implicit forall_kvs (mkHsQTvs tyvar_bndrs) lctxt ty
+    rnForAll doc Implicit extra forall_kvs (mkHsQTvs tyvar_bndrs) lctxt ty
 
-rnHsTyKi isType doc ty@(HsForAllTy Explicit forall_tyvars lctxt@(L _ ctxt) tau)
+rnHsTyKi isType doc ty@(HsForAllTy Explicit extra forall_tyvars lctxt@(L _ ctxt) tau)
   = ASSERT( isType ) do {      -- Explicit quantification.
          -- Check that the forall'd tyvars are actually
          -- mentioned in the type, and produce a warning if not
@@ -145,7 +145,7 @@ rnHsTyKi isType doc ty@(HsForAllTy Explicit forall_tyvars lctxt@(L _ ctxt) tau)
              in_type_doc = ptext (sLit "In the type") <+> quotes (ppr ty)
        ; warnUnusedForAlls (in_type_doc $$ docOfHsDocContext doc) forall_tyvars mentioned
 
-       ; rnForAll doc Explicit kvs forall_tyvars lctxt tau }
+       ; rnForAll doc Explicit extra kvs forall_tyvars lctxt tau }
 
 rnHsTyKi isType _ (HsTyVar rdr_name)
   = do { name <- rnTyVar isType rdr_name
@@ -328,16 +328,17 @@ rnLHsTypes doc tys = mapFvRn (rnLHsType doc) tys
 
 \begin{code}
 rnForAll :: HsDocContext -> HsExplicitFlag
-         -> [RdrName]                -- Kind variables
+         -> Maybe SrcSpan           -- Location of an extra-constraints wildcard
+         -> [RdrName]               -- Kind variables
          -> LHsTyVarBndrs RdrName   -- Type variables
          -> LHsContext RdrName -> LHsType RdrName
          -> RnM (HsType Name, FreeVars)
 
-rnForAll doc exp kvs forall_tyvars ctxt ty
-  | null kvs, null (hsQTvBndrs forall_tyvars), null (unLoc ctxt)
+rnForAll doc exp extra kvs forall_tyvars ctxt ty
+  | null kvs, null (hsQTvBndrs forall_tyvars), null (unLoc ctxt), isNothing extra
   = rnHsType doc (unLoc ty)
         -- One reason for this case is that a type like Int#
-        -- starts off as (HsForAllTy Nothing [] Int), in case
+        -- starts off as (HsForAllTy Implicit Nothing [] Int), in case
         -- there is some quantification.  Now that we have quantified
         -- and discovered there are no type variables, it's nicer to turn
         -- it into plain Int.  If it were Int# instead of Int, we'd actually
@@ -348,7 +349,7 @@ rnForAll doc exp kvs forall_tyvars ctxt ty
   = bindHsTyVars doc Nothing kvs forall_tyvars $ \ new_tyvars ->
     do { (new_ctxt, fvs1) <- rnContext doc ctxt
        ; (new_ty, fvs2) <- rnLHsType doc ty
-       ; return (HsForAllTy exp new_tyvars new_ctxt new_ty, fvs1 `plusFV` fvs2) }
+       ; return (HsForAllTy exp extra new_tyvars new_ctxt new_ty, fvs1 `plusFV` fvs2) }
         -- Retain the same implicit/explicit flag as before
         -- so that we can later print it correctly
 
@@ -983,7 +984,7 @@ extract_lty (L _ ty) acc
       HsTyLit _                 -> acc
       HsWrapTy _ _              -> panic "extract_lty"
       HsKindSig ty ki           -> extract_lty ty (extract_lkind ki acc)
-      HsForAllTy _ tvs cx ty    -> extract_hs_tv_bndrs tvs acc $
+      HsForAllTy _ _ tvs cx ty  -> extract_hs_tv_bndrs tvs acc $
                                    extract_lctxt cx   $
                                    extract_lty ty ([],[])
       -- We deal with these to in a later stage, because they need to be
@@ -1017,11 +1018,11 @@ extractWildcards :: LHsType RdrName -> RnM ([Located RdrName], [Name], LHsType R
 extractWildcards = go
   where
     go orig@(L l ty) = case ty of
-      (HsForAllTy exp bndrs (L locCxt cxt) ty) ->
+      (HsForAllTy exp extra bndrs (L locCxt cxt) ty) ->
         do (nwcs1, awcs1, ty')  <- extractWildcards ty
            (nwcs2, awcs2, cxt') <- extList cxt
            return (nwcs1 ++ nwcs2, awcs1 ++ awcs2,
-                   L l (HsForAllTy exp bndrs (L locCxt cxt') ty'))
+                   L l (HsForAllTy exp extra bndrs (L locCxt cxt') ty'))
       (HsAppTy ty1 ty2)           -> go2 HsAppTy ty1 ty2
       (HsFunTy ty1 ty2)           -> go2 HsFunTy ty1 ty2
       (HsListTy ty)               -> go1 HsListTy ty

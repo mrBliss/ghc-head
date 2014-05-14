@@ -150,7 +150,7 @@ repTopDs group
 hsSigTvBinders :: HsValBinds Name -> [Name]
 -- See Note [Scoped type variables in bindings]
 hsSigTvBinders binds
-  = [hsLTyVarName tv | L _ (TypeSig _ (L _ (HsForAllTy Explicit qtvs _ _)) _ _) <- sigs
+  = [hsLTyVarName tv | L _ (TypeSig _ (L _ (HsForAllTy Explicit _ qtvs _ _)) _ _) <- sigs
                      , tv <- hsQTvBndrs qtvs]
   where
     sigs = case binds of
@@ -633,7 +633,7 @@ rep_ty_sig loc (L _ ty) nm
   where
     -- We must special-case the top-level explicit for-all of a TypeSig
     -- See Note [Scoped type variables in bindings]
-    rep_ty (HsForAllTy Explicit tvs ctxt ty)
+    rep_ty (HsForAllTy Explicit _ tvs ctxt ty)
       = do { let rep_in_scope_tv tv = do { name <- lookupBinder (hsLTyVarName tv)
                                          ; repTyVarBndrWithKind tv name }
            ; bndrs1 <- repList tyVarBndrTyConName rep_in_scope_tv (hsQTvBndrs tvs)
@@ -770,7 +770,7 @@ repLTy :: LHsType Name -> DsM (Core TH.TypeQ)
 repLTy (L _ ty) = repTy ty
 
 repTy :: HsType Name -> DsM (Core TH.TypeQ)
-repTy (HsForAllTy _ tvs ctxt ty)  =
+repTy (HsForAllTy _ _ tvs ctxt ty)  =
   addTyVarBinds tvs $ \bndrs -> do
     ctxt1  <- repLContext ctxt
     ty1    <- repLTy ty

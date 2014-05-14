@@ -54,6 +54,8 @@ import StaticFlags
 import Outputable
 import FastString
 
+import Data.Maybe( isJust )
+import Data.Monoid( mappend, First(..) )
 import Data.Data
 \end{code}
 
@@ -194,9 +196,13 @@ data HsType name
   = HsForAllTy  HsExplicitFlag          -- Renamer leaves this flag unchanged, to record the way
                                         -- the user wrote it originally, so that the printer can
                                         -- print it as the user wrote it
-                (LHsTyVarBndrs name) 
+                (Maybe SrcSpan)         -- Indicates whether extra constraints may be inferred.
+                                        -- When Nothing, no, otherwise the location of the extra-
+                                        -- constraints wildcard is stored.
+                (LHsTyVarBndrs name)
                 (LHsContext name)
                 (LHsType name)
+
 
   | HsTyVar             name            -- Type variable, type constructor, or data constructor
                                         -- see Note [Promotions (HsTyVar)]
@@ -397,13 +403,22 @@ mkExplicitHsForAllTy tvs ctxt ty = mkHsForAllTy Explicit tvs ctxt ty
 mkHsForAllTy :: HsExplicitFlag -> [LHsTyVarBndr RdrName] -> LHsContext RdrName -> LHsType RdrName -> HsType RdrName
 -- Smart constructor for HsForAllTy
 mkHsForAllTy exp tvs (L _ []) ty = mk_forall_ty exp tvs ty
-mkHsForAllTy exp tvs ctxt     ty = HsForAllTy exp (mkHsQTvs tvs) ctxt ty
+mkHsForAllTy exp tvs ctxt'    ty = HsForAllTy exp extra (mkHsQTvs tvs) restCtxt ty
+  where ctxt = (fmap ignoreParens) `fmap` ctxt'
+        ignoreParens (L _ (HsParTy ty)) = ty
+        ignoreParens ty                 = ty
+        (restCtxt, extra)
+          | (L l HsWildcardTy) <- last (unLoc ctxt) = (init `fmap` ctxt, Just l)
+          | otherwise                               = (ctxt, Nothing)
+
 
 -- mk_forall_ty makes a pure for-all type (no context)
 mk_forall_ty :: HsExplicitFlag -> [LHsTyVarBndr RdrName] -> LHsType RdrName -> HsType RdrName
-mk_forall_ty exp  tvs  (L _ (HsParTy ty))                    = mk_forall_ty exp tvs ty
-mk_forall_ty exp1 tvs1 (L _ (HsForAllTy exp2 qtvs2 ctxt ty)) = mkHsForAllTy (exp1 `plus` exp2) (tvs1 ++ hsq_tvs qtvs2) ctxt ty
-mk_forall_ty exp  tvs  ty                                    = HsForAllTy exp (mkHsQTvs tvs) (noLoc []) ty
+mk_forall_ty exp  tvs  (L _ (HsParTy ty))                           = mk_forall_ty exp tvs ty
+mk_forall_ty exp1 tvs1 (L _ (HsForAllTy exp2 extra2 qtvs2 ctxt ty)) = HsForAllTy exp' extra' qtvs' ctxt' ty'
+  where (HsForAllTy exp' extra1 qtvs' ctxt' ty') = mkHsForAllTy (exp1 `plus` exp2) (tvs1 ++ hsq_tvs qtvs2) ctxt ty
+        extra' = getFirst $ First extra2 `mappend` First extra1
+mk_forall_ty exp  tvs  ty                                          = HsForAllTy exp Nothing (mkHsQTvs tvs) (noLoc []) ty
         -- Even if tvs is empty, we still make a HsForAll!
         -- In the Implicit case, this signals the place to do implicit quantification
         -- In the Explicit case, it prevents implicit quantification    
@@ -416,7 +431,7 @@ _        `plus` _        = Explicit
 
 hsExplicitTvs :: LHsType Name -> [Name]
 -- The explicitly-given forall'd type variables of a HsType
-hsExplicitTvs (L _ (HsForAllTy Explicit tvs _ _)) = hsLKiTyVarNames tvs
+hsExplicitTvs (L _ (HsForAllTy Explicit _ tvs _ _)) = hsLKiTyVarNames tvs
 hsExplicitTvs _                                   = []
 
 ---------------------
@@ -487,9 +502,9 @@ splitLHsForAllTy
     -> (LHsTyVarBndrs name, HsContext name, LHsType name)
 splitLHsForAllTy poly_ty
   = case unLoc poly_ty of
-        HsParTy ty              -> splitLHsForAllTy ty
-        HsForAllTy _ tvs cxt ty -> (tvs, unLoc cxt, ty)
-        _                       -> (emptyHsQTvs, [], poly_ty)
+        HsParTy ty                -> splitLHsForAllTy ty
+        HsForAllTy _ _ tvs cxt ty -> (tvs, unLoc cxt, ty)
+        _                         -> (emptyHsQTvs, [], poly_ty)
         -- The type vars should have been computed by now, even if they were implicit
 
 splitHsClassTy_maybe :: HsType name -> Maybe (name, [LHsType name])
@@ -565,24 +580,29 @@ instance (OutputableBndr name) => Outputable (HsTyVarBndr name) where
 instance (Outputable thing) => Outputable (HsWithBndrs thing) where
     ppr (HsWB { hswb_cts = ty }) = ppr ty
 
-pprHsForAll :: OutputableBndr name => HsExplicitFlag -> LHsTyVarBndrs name ->  LHsContext name -> SDoc
-pprHsForAll exp qtvs cxt 
-  | show_forall = forall_part <+> pprHsContext (unLoc cxt)
-  | otherwise   = pprHsContext (unLoc cxt)
+pprHsForAll :: OutputableBndr name => HsExplicitFlag -> Maybe SrcSpan -> LHsTyVarBndrs name ->  LHsContext name -> SDoc
+pprHsForAll exp extra qtvs cxt
+  | show_forall = forall_part <+> pprHsContext extraPres (unLoc cxt)
+  | otherwise   = pprHsContext extraPres (unLoc cxt)
   where
+    extraPres   = isJust extra
     show_forall =  opt_PprStyle_Debug
                 || (not (null (hsQTvBndrs qtvs)) && is_explicit)
     is_explicit = case exp of {Explicit -> True; Implicit -> False}
     forall_part = forAllLit <+> ppr qtvs <> dot
 
-pprHsContext :: (OutputableBndr name) => HsContext name -> SDoc
-pprHsContext []  = empty
-pprHsContext cxt = pprHsContextNoArrow cxt <+> darrow
+pprHsContext :: (OutputableBndr name) => Bool -> HsContext name -> SDoc
+pprHsContext False []  = empty
+pprHsContext True  []  = ptext (sLit "_") <+> darrow
+pprHsContext extra cxt = pprHsContextNoArrow extra cxt <+> darrow
 
-pprHsContextNoArrow :: (OutputableBndr name) => HsContext name -> SDoc
-pprHsContextNoArrow []         = empty
-pprHsContextNoArrow [L _ pred] = ppr pred
-pprHsContextNoArrow cxt        = ppr_hs_context cxt
+pprHsContextNoArrow :: (OutputableBndr name) => Bool -> HsContext name -> SDoc
+pprHsContextNoArrow False []         = empty
+pprHsContextNoArrow True  []         = ptext (sLit "_")
+pprHsContextNoArrow False [L _ pred] = ppr pred
+pprHsContextNoArrow False cxt        = ppr_hs_context cxt
+pprHsContextNoArrow True  ctxt       = parens (sep (punctuate comma ctxt'))
+  where ctxt' = (map ppr ctxt) ++ [ptext (sLit "_")]
 
 ppr_hs_context :: (OutputableBndr name) => HsContext name -> SDoc
 ppr_hs_context []  = empty
@@ -642,9 +662,9 @@ ppr_mono_lty :: (OutputableBndr name) => Int -> LHsType name -> SDoc
 ppr_mono_lty ctxt_prec ty = ppr_mono_ty ctxt_prec (unLoc ty)
 
 ppr_mono_ty :: (OutputableBndr name) => Int -> HsType name -> SDoc
-ppr_mono_ty ctxt_prec (HsForAllTy exp tvs ctxt ty)
+ppr_mono_ty ctxt_prec (HsForAllTy exp extra tvs ctxt ty)
   = maybeParen ctxt_prec pREC_FUN $
-    sep [pprHsForAll exp tvs ctxt, ppr_mono_lty pREC_TOP ty]
+    sep [pprHsForAll exp extra tvs ctxt, ppr_mono_lty pREC_TOP ty]
 
 ppr_mono_ty _    (HsBangTy b ty)     = ppr b <> ppr_mono_lty pREC_CON ty
 ppr_mono_ty _    (HsQuasiQuoteTy qq) = ppr qq
