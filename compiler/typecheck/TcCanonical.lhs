@@ -184,8 +184,8 @@ canonicalize (CFunEqCan { cc_ev = ev
 
 canonicalize (CIrredEvCan { cc_ev = ev })
   = canIrred ev
-canonicalize (CHoleCan { cc_ev = ev, cc_occ = occ })
-  = canHole ev occ
+canonicalize (CHoleCan { cc_ev = ev, cc_occ = occ, cc_hole = hole })
+  = canHole ev occ hole
 
 canEvNC :: CtEvidence -> TcS StopOrContinue
 -- Called only for non-canonical EvVars
@@ -391,13 +391,15 @@ canIrred old_ev
            _                 -> continueWith $
                                 CIrredEvCan { cc_ev = new_ev } } } }
 
-canHole :: CtEvidence -> OccName -> TcS StopOrContinue
-canHole ev occ
+canHole :: CtEvidence -> OccName -> HoleSort -> TcS StopOrContinue
+canHole ev occ hole_sort
   = do { let ty = ctEvPred ev
        ; (xi,co) <- flatten FMFullFlatten ev ty -- co :: xi ~ ty
        ; mb <- rewriteEvidence ev xi co
        ; case mb of
-             Just new_ev -> emitInsoluble (CHoleCan { cc_ev = new_ev, cc_occ = occ })
+             Just new_ev -> emitInsoluble (CHoleCan { cc_ev = new_ev
+                                                    , cc_occ = occ
+                                                    , cc_hole = hole_sort })
              Nothing     -> return ()   -- Found a cached copy; won't happen
        ; return Stop }
 \end{code}

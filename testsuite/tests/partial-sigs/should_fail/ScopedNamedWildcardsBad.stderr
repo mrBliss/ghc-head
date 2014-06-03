@@ -1,4 +1,52 @@
 
+ScopedNamedWildcardsBad.hs:7:10:
+    Found hole ‘_a’ with type: (t, t1)
+    Where: ‘t’ is a rigid type variable bound by
+               the inferred type of test2 :: (t, t1) -> (t, t1)
+               at ScopedNamedWildcardsBad.hs:8:1
+           ‘t1’ is a rigid type variable bound by
+                the inferred type of test2 :: (t, t1) -> (t, t1)
+                at ScopedNamedWildcardsBad.hs:8:1
+    To use the inferred type, enable PartialTypeSignatures
+    In the type signature for ‘test2’: test2 :: _a -> _a
+
+ScopedNamedWildcardsBad.hs:7:16:
+    Found hole ‘_a’ with type: (t, t1)
+    Where: ‘t’ is a rigid type variable bound by
+               the inferred type of test2 :: (t, t1) -> (t, t1)
+               at ScopedNamedWildcardsBad.hs:8:1
+           ‘t1’ is a rigid type variable bound by
+                the inferred type of test2 :: (t, t1) -> (t, t1)
+                at ScopedNamedWildcardsBad.hs:8:1
+    To use the inferred type, enable PartialTypeSignatures
+    In the type signature for ‘test2’: test2 :: _a -> _a
+
+ScopedNamedWildcardsBad.hs:8:20:
+    Found hole ‘_a’ with type: (t, t1)
+    Where: ‘t’ is a rigid type variable bound by
+               the inferred type of test2 :: (t, t1) -> (t, t1)
+               at ScopedNamedWildcardsBad.hs:8:1
+           ‘t1’ is a rigid type variable bound by
+                the inferred type of test2 :: (t, t1) -> (t, t1)
+                at ScopedNamedWildcardsBad.hs:8:1
+    To use the inferred type, enable PartialTypeSignatures
+    Relevant bindings include
+      x :: (t, t1) (bound at ScopedNamedWildcardsBad.hs:8:7)
+      test2 :: (t, t1) -> (t, t1)
+        (bound at ScopedNamedWildcardsBad.hs:8:1)
+    In the type signature for ‘y’: y :: _a
+    In the expression:
+      let
+        y :: _a
+        y = (x, undefined)
+      in y
+    In an equation for ‘test2’:
+        test2 x
+          = let
+              y :: _a
+              y = ...
+            in y
+
 ScopedNamedWildcardsBad.hs:9:20:
     Occurs check: cannot construct the infinite type: t ~ (t, t1)
     Relevant bindings include

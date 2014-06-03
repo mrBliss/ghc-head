@@ -2,4 +2,4 @@
 module ParensAroundContext where
 
 f :: (_) => a -> a -> Bool
-f = (==)
+f x y = x == y

@@ -51,7 +51,6 @@ import Panic
 import Util
 import Annotations
 import BasicTypes( TopLevelFlag )
-import OrdList( nilOL )
 
 import Control.Exception
 import Data.IORef
@@ -98,7 +97,6 @@ initTc hsc_env hsc_src keep_rn_syntax mod do_this
                            Nothing             -> newIORef emptyNameEnv } ;
 
         dependent_files_var <- newIORef [] ;
-        instantiation_reporters_var <- newIORef nilOL ;
 #ifdef GHCI
         th_topdecls_var      <- newIORef [] ;
         th_topnames_var      <- newIORef emptyNameSet ;
@@ -160,8 +158,7 @@ initTc hsc_env hsc_src keep_rn_syntax mod do_this
                 tcg_hpc            = False,
                 tcg_main           = Nothing,
                 tcg_safeInfer      = infer_var,
-                tcg_dependent_files = dependent_files_var,
-                tcg_instantiation_reporters = instantiation_reporters_var
+                tcg_dependent_files = dependent_files_var
              } ;
              lcl_env = TcLclEnv {
                 tcl_errs            = errs_var,

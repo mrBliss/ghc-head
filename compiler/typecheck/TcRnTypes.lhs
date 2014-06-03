@@ -63,7 +63,7 @@ module TcRnTypes(
         bumpSubGoalDepth, subGoalCounterValue, subGoalDepthExceeded,
         CtLoc(..), ctLocSpan, ctLocEnv, ctLocOrigin,
         ctLocDepth, bumpCtLocDepth,
-        setCtLocOrigin, setCtLocEnv,
+        setCtLocOrigin, setCtLocEnv, setCtLocSpan,
         CtOrigin(..),
         pushErrCtxt, pushErrCtxtSameOrigin,
 
@@ -80,7 +80,7 @@ module TcRnTypes(
         pprArising, pprArisingAt,
 
         -- Misc other types
-        TcId, TcIdSet, TcTyVarBind(..), TcTyVarBinds
+        TcId, TcIdSet, TcTyVarBind(..), TcTyVarBinds, HoleSort(..)
 
   ) where
 
@@ -119,7 +119,6 @@ import DynFlags
 import Outputable
 import ListSetOps
 import FastString
-import OrdList  ( OrdList )
 
 import Data.Set      ( Set )
 
@@ -346,19 +345,9 @@ data TcGblEnv
         tcg_main      :: Maybe Name,         -- ^ The Name of the main
                                              -- function, if this module is
                                              -- the main module.
-        tcg_safeInfer :: TcRef Bool,         -- Has the typechecker
+        tcg_safeInfer :: TcRef Bool          -- Has the typechecker
                                              -- inferred this module
                                              -- as -XSafe (Safe Haskell)
-        tcg_instantiation_reporters :: TcRef (OrdList (TidyEnv -> TcM TidyEnv))
-                -- ^ An OrdList (for the efficient snoc) of delayed monadic
-                -- computations that, when passed a TidyEnv, will report as
-                -- errors or trace (depending on the PartialTypeSignatures
-                -- flag) the inferred types the wildcards in partial type
-                -- signatures were instantiated to. The same TidyEnv is
-                -- threaded through all reporters. Why store delayed monadic
-                -- computations in the environment instead of reporting them
-                -- directly? The information required to report the
-                -- instantiations is lost before the final types are known.
     }
 
 instance ContainsModule TcGblEnv where
@@ -982,9 +971,15 @@ data Ct
 
   | CHoleCan {             -- Treated as an "insoluble" constraint
                            -- See Note [Insoluble constraints]
-      cc_ev  :: CtEvidence,
-      cc_occ :: OccName    -- The name of this hole
+      cc_ev   :: CtEvidence,
+      cc_occ  :: OccName,   -- The name of this hole
+      cc_hole :: HoleSort   -- The sort of this hole (expr, type, ...)
     }
+
+data HoleSort = ExprHole
+              | TypeHole
+              | ConstraintsHole TcTyVar
+
 \end{code}
 
 Note [Kind orientation for CTyEqCan]
@@ -1198,6 +1193,13 @@ emptyCts = emptyBag
 
 isEmptyCts :: Cts -> Bool
 isEmptyCts = isEmptyBag
+
+isWildcardCt :: Ct -> Bool
+isWildcardCt (CHoleCan { cc_hole = hole }) = case hole of
+  ExprHole -> False
+  _        -> True
+isWildcardCt _ = False
+
 \end{code}
 
 %************************************************************************
@@ -1234,7 +1236,8 @@ isEmptyWC (WC { wc_flat = f, wc_impl = i, wc_insol = n })
 
 insolubleWC :: WantedConstraints -> Bool
 -- True if there are any insoluble constraints in the wanted bag
-insolubleWC wc = not (isEmptyBag (wc_insol wc))
+insolubleWC wc = not (isEmptyBag (filterBag (not . isWildcardCt) (wc_insol wc))) -- TODOT terrible hack!
+-- insolubleWC wc = not (isEmptyBag (wc_insol wc))
                || anyBag ic_insol (wc_impl wc)
 
 andWC :: WantedConstraints -> WantedConstraints -> WantedConstraints
@@ -1655,6 +1658,9 @@ ctLocOrigin = ctl_origin
 
 ctLocSpan :: CtLoc -> SrcSpan
 ctLocSpan (CtLoc { ctl_env = lcl}) = tcl_loc lcl
+
+setCtLocSpan :: CtLoc -> SrcSpan -> CtLoc
+setCtLocSpan ctl@(CtLoc { ctl_env = lcl }) loc = setCtLocEnv ctl (lcl { tcl_loc = loc })
 
 bumpCtLocDepth :: SubGoalCounter -> CtLoc -> CtLoc
 bumpCtLocDepth cnt loc@(CtLoc { ctl_depth = d }) = loc { ctl_depth = bumpSubGoalDepth cnt d }

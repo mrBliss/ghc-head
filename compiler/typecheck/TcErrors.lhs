@@ -240,8 +240,8 @@ reportFlats ctxt flats    -- Here 'flats' includes insolble goals
       [ -- First deal with things that are utterly wrong
         -- Like Int ~ Bool (incl nullary TyCons)
         -- or  Int ~ t a   (AppTy on one side)
-        ("Utterly wrong",  utterly_wrong,   True, mkGroupReporter mkEqErr)
-      , ("Holes",          is_hole,         True, mkUniReporter mkHoleError)
+        ("Utterly wrong",  utterly_wrong,   True,  mkGroupReporter mkEqErr)
+      , ("Holes",          is_hole,         False, mkUniReporter mkHoleError)
 
         -- Report equalities of form (a~ty).  They are usually
         -- skolem-equalities, and they cause confusing knock-on
@@ -531,16 +531,28 @@ mkIrredErr ctxt cts
 
 ----------------
 mkHoleError :: ReportErrCtxt -> Ct -> TcM ErrMsg
-mkHoleError ctxt ct@(CHoleCan { cc_occ = occ })
-  = do { let tyvars = varSetElems (tyVarsOfCt ct)
+mkHoleError ctxt ct@(CHoleCan { cc_occ = occ, cc_hole = hole }) = case hole of
+  ConstraintsHole mvar ->
+    do { ty <- zonkTcTyVar mvar
+       ; let tyvars = varSetElems (tyVarsOfType ty)
+             tyvars_msg = map loc_msg tyvars
+             msg = vcat [ hang (ptext (sLit "Found hole") <+> quotes (ppr occ))
+                             2 (ptext (sLit "with inferred constraints:") <+> pprType ty)
+                        , ppUnless (null tyvars_msg) (ptext (sLit "Where:") <+> vcat tyvars_msg)
+                        , pts_hint ]
+       ; mkErrorMsg ctxt ct msg }
+  sort ->
+    do { let tyvars = varSetElems (tyVarsOfCt ct)
              tyvars_msg = map loc_msg tyvars
              msg = vcat [ hang (ptext (sLit "Found hole") <+> quotes (ppr occ))
                              2 (ptext (sLit "with type:") <+> pprType (ctEvPred (ctEvidence ct)))
-                        , ppUnless (null tyvars_msg) (ptext (sLit "Where:") <+> vcat tyvars_msg) ]
+                        , ppUnless (null tyvars_msg) (ptext (sLit "Where:") <+> vcat tyvars_msg)
+                        , case sort of { ExprHole -> empty ; _ -> pts_hint } ]
        ; (ctxt, binds_doc) <- relevantBindings False ctxt ct
                -- The 'False' means "don't filter the bindings; see Trac #8191
        ; mkErrorMsg ctxt ct (msg $$ binds_doc) }
   where
+    pts_hint = ptext (sLit "To use the inferred type, enable PartialTypeSignatures")
     loc_msg tv 
        = case tcTyVarDetails tv of
           SkolemTv {} -> quotes (ppr tv) <+> skol_msg

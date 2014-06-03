@@ -21,7 +21,7 @@ module TcUnify (
 
   -- Various unifications
   unifyType, unifyTypeList, unifyTheta, 
-  unifyKindX, 
+  unifyKindX,  unifyExtraConstraintsHole,
 
   --------------------------------
   -- Holes
@@ -499,6 +499,11 @@ unifyTheta theta1 theta2
                   (vcat [ptext (sLit "Contexts differ in length"),
                          nest 2 $ parens $ ptext (sLit "Use RelaxedPolyRec to allow this")])
         ; zipWithM unifyPred theta1 theta2 }
+
+---------------
+unifyExtraConstraintsHole :: TcTyVar -> TcThetaType -> TcM TcCoercion
+unifyExtraConstraintsHole tv theta
+  = uType HoleOrigin (mkTyVarTy tv) (mkTupleTy ConstraintTuple theta)
 \end{code}
 
 @unifyTypeList@ takes a single list of @TauType@s and unifies them

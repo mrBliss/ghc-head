@@ -770,10 +770,9 @@ renameSig ctxt sig@(TypeSig vs ty extra _)
         ; (nwcs, awcs, ty') <- extractWildcards ty
         ; rdr_env <- getLocalRdrEnv
         ; let nwcs' = nubBy eqLocated $ filterOut (flip (elemLocalRdrEnv . unLoc) rdr_env) nwcs
-        ; bindLocalNamesFV awcs $
-          bindLocatedLocalsFV nwcs' $ \nwcs_new -> do {
+        ; bindLocatedLocalsFV (nwcs' ++ awcs) $ \nwcs_new -> do {
           (new_ty, fvs) <- rnHsSigType (ppr_sig_bndrs vs) ty'
-        ; return (TypeSig new_vs new_ty extra (nwcs_new ++ awcs), fvs) } }
+        ; return (TypeSig new_vs new_ty extra nwcs_new, fvs) } }
 
 renameSig ctxt sig@(GenericSig vs ty)
   = do	{ defaultSigs_on <- xoptM Opt_DefaultSignatures

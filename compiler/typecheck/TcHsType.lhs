@@ -66,12 +66,13 @@ import NameEnv
 import TysWiredIn
 import BasicTypes
 import SrcLoc
-import DynFlags ( ExtensionFlag( Opt_DataKinds ), getDynFlags )
+import DynFlags ( ExtensionFlag( Opt_DataKinds, Opt_PartialTypeSignatures ), getDynFlags )
 import Unique
 import UniqSupply
 import Outputable
 import FastString
 import Util
+import Id ( mkLocalId )
 
 import Control.Monad ( unless, when, zipWithM )
 import PrelNames( ipClassName, funTyConKey )
@@ -534,11 +535,20 @@ tc_hs_type hs_ty@(HsTyLit (HsStrTy s)) exp_kind
        ; return (mkStrLitTy s) }
 
 
-tc_hs_type HsWildcardTy (EK _ _) = panic "tc_hs_type HsWildcardTy"
-  -- unnamed wildcards should have been removed in the renamer...
+tc_hs_type HsWildcardTy _ = panic "tc_hs_type HsWildcardTy"
+-- unnamed wildcards should have been replaced by named wildcards
 
-tc_hs_type (HsNamedWildcardTy _) _ = panic "tc_hs_type HsNamedWildcardTy"
-  -- named wildcards should have been replaced by type variables in the renamer...
+tc_hs_type hs_ty@(HsNamedWildcardTy name) exp_kind
+  = do { (ty, k) <- tcTyVar name
+       ; checkExpectedKind hs_ty k exp_kind
+       ; loc <- getCtLoc HoleOrigin
+       ; let ev  = mkLocalId name ty
+             can = CHoleCan { cc_ev = CtWanted ty ev loc
+                            , cc_occ = occName name
+                            , cc_hole = TypeHole }
+       ; partial_sigs <- xoptM Opt_PartialTypeSignatures
+       ; unless partial_sigs $ emitInsoluble can
+       ; return ty }
 
 ---------------------------
 tupKindSort_maybe :: TcKind -> Maybe TupleSort

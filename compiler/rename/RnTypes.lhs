@@ -292,25 +292,13 @@ rnHsTyKi isType doc ty@(HsExplicitTupleTy kis tys)
        ; (tys', fvs) <- rnLHsTypes doc tys
        ; return (HsExplicitTupleTy kis tys', fvs) }
 
--- Wildcards should have been transformed into type variables with fresh names
--- in renameSigs. Unless they occur in a pattern/expression signature.
+rnHsTyKi _ _ HsWildcardTy = panic "rnHsTyKi HsWildcardTy"
+                            -- Should be replaced by a HsNamedWildcardTy
 
-rnHsTyKi isType ExprWithTySigCtx HsWildcardTy
-  = ASSERT( isType )
-    do { uniq <- newUnique
-       ; let name = mkInternalName uniq (mkTyVarOcc "_") noSrcSpan
-       ; return (HsTyVar name, unitFV name) }
-
-rnHsTyKi _ _ HsWildcardTy
-  = panic "HsWildCardTy in rnHsTyKi"
-
-rnHsTyKi isType ExprWithTySigCtx (HsNamedWildcardTy rdr_name)
+rnHsTyKi isType _doc (HsNamedWildcardTy rdr_name)
   = ASSERT( isType )
     do { name <- rnTyVar isType rdr_name
-       ; return (HsTyVar name, unitFV name) }
-
-rnHsTyKi _ _ (HsNamedWildcardTy _)
-  = panic "HsNamedWildCardTy in rnHsTyKi"
+       ; return (HsNamedWildcardTy name, unitFV name) }
 
 --------------
 rnTyVar :: Bool -> RdrName -> RnM Name
@@ -451,11 +439,11 @@ rnHsBndrSig doc (HsWB { hswb_cts = ty@(L loc _) }) thing_inside
        ; let nwcs' = nubBy eqLocated $ filterOut (flip (elemLocalRdrEnv . unLoc) name_env) nwcs
        ; bindLocalNamesFV kv_names $
          bindLocalNamesFV tv_names $
-         bindLocalNamesFV awcs $
+         bindLocatedLocalsFV awcs $ \awcs_new ->
          bindLocatedLocalsFV nwcs' $ \nwcs_new ->
     do { (ty'', fvs1) <- rnLHsType doc ty'
        ; (res, fvs2) <- thing_inside (HsWB { hswb_cts = ty'', hswb_kvs = kv_names,
-                                             hswb_tvs = tv_names, hswb_wcs = (nwcs_new ++ awcs) })
+                                             hswb_tvs = tv_names, hswb_wcs = (nwcs_new ++ awcs_new) })
        ; return (res, fvs1 `plusFV` fvs2) } }
 
 overlappingKindVars :: HsDocContext -> [RdrName] -> SDoc
@@ -1014,7 +1002,7 @@ extract_tv tv acc
 
 -- Return the wildcards used in a type and transform unnamed wildcards
 -- to named wildcards with fresh names in the process.
-extractWildcards :: LHsType RdrName -> RnM ([Located RdrName], [Name], LHsType RdrName)
+extractWildcards :: LHsType RdrName -> RnM ([Located RdrName], [Located RdrName], LHsType RdrName)
 extractWildcards = go
   where
     go orig@(L l ty) = case ty of
@@ -1037,12 +1025,14 @@ extractWildcards = go
       (HsBangTy b ty)             -> go1 (HsBangTy b) ty
       (HsExplicitListTy ptk tys)  -> goList (HsExplicitListTy ptk) tys
       (HsExplicitTupleTy ptk tys) -> goList (HsExplicitTupleTy ptk) tys
-      HsWildcardTy -> do uniq <- newUnique
-                         let name = mkInternalName uniq (mkTyVarOcc "_") l
-                         return ([], [name], L l $ HsTyVar (nameRdrName name))
-      (HsNamedWildcardTy name) -> return ([L l name], [], L l $ HsTyVar name)
+      HsWildcardTy                -> do
+        uniq <- newUnique
+        let name = mkInternalName uniq (mkTyVarOcc "_") l
+            rdrName = nameRdrName name
+        return ([], [L l rdrName], L l $ HsNamedWildcardTy rdrName)
+      (HsNamedWildcardTy name)    -> return ([L l name], [], orig)
       -- HsQuasiQuoteTy, HsSpliceTy, HsRecTy, HsCoreTy, HsTyLit, HsWrapTy
-      _ -> return ([], [], orig)
+      _                           -> return ([], [], orig)
       where
         go1 f t = do (nwcs, awcs, t') <- extractWildcards t
                      return (nwcs, awcs, L l $ f t')

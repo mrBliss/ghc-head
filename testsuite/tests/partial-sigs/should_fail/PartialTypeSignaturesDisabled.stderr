@@ -1,14 +1,10 @@
 
 PartialTypeSignaturesDisabled.hs:4:8:
-    Instantiated wildcard ‘_’ to: Bool
-      in the type signature for foo :: _ -> _
-      at PartialTypeSignaturesDisabled.hs:4:8-13
-    The complete inferred type is: foo :: Bool -> Bool
+    Found hole ‘_’ with type: Bool
     To use the inferred type, enable PartialTypeSignatures
+    In the type signature for ‘foo’: foo :: _ -> _
 
 PartialTypeSignaturesDisabled.hs:4:13:
-    Instantiated wildcard ‘_’ to: Bool
-      in the type signature for foo :: _ -> _
-      at PartialTypeSignaturesDisabled.hs:4:8-13
-    The complete inferred type is: foo :: Bool -> Bool
+    Found hole ‘_’ with type: Bool
     To use the inferred type, enable PartialTypeSignatures
+    In the type signature for ‘foo’: foo :: _ -> _

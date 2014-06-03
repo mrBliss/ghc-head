@@ -280,12 +280,12 @@ rnExpr (ExprWithTySig expr pty ids)
         ; rdr_env <- getLocalRdrEnv
         ; let nwcs' = nubBy eqLocated $
                       filterOut (flip (elemLocalRdrEnv . unLoc) rdr_env) nwcs
-        ; bindLocalNamesFV awcs $
+        ; bindLocatedLocalsFV awcs $ \awcs_new ->
           bindLocatedLocalsFV nwcs' $ \nwcs_new -> do {
           (pty'', fvTy) <- rnLHsType ExprWithTySigCtx pty'
         ; (expr', fvExpr) <- bindSigTyVarsFV ([], hsExplicitTvs pty'') $
                              rnLExpr expr
-        ; return (ExprWithTySig expr' pty'' (nwcs_new ++ awcs),
+        ; return (ExprWithTySig expr' pty'' (nwcs_new ++ awcs_new),
                   fvExpr `plusFV` fvTy) } }
 
 rnExpr (HsIf _ p b1 b2)
