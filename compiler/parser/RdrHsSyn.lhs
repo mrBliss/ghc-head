@@ -93,7 +93,7 @@ import Data.Char
 
 import Data.Data       ( dataTypeOf, fromConstr, dataTypeConstrs )
 import Data.List       ( partition )
-import qualified Data.Set as Set ( fromList , difference, member )
+import qualified Data.Set as Set ( fromList, difference, member )
 
 
 #include "HsVersions.h"
@@ -172,7 +172,7 @@ checkNoPartialCon con_decls =
 checkNoPartialType :: SDoc -> LHsType RdrName -> P ()
 checkNoPartialType context_msg ty =
   whenFound (findWildcards ty) $ \loc -> parseErrorSDoc loc err
-  where err = ptext (sLit "Wildcard not allowed") $$ context_msg -- TODOT message
+  where err = ptext (sLit "Wildcard not allowed") $$ context_msg
 
 data FoundWildcard = Found { location :: SrcSpan }
                    | FoundNamed { location :: SrcSpan, _name :: RdrName }
@@ -898,12 +898,9 @@ isNamedWildcardTy (HsNamedWildcardTy _) = True
 isNamedWildcardTy _ = False
 
 checkValidDefaults :: [LHsType RdrName] -> P (DefaultDecl RdrName)
-checkValidDefaults tys
-  = do { mapM_ (checkNoPartialType err) tys
-       ; return ret }
-  where
-    ret = DefaultDecl tys
-    err = ptext (sLit "In declaration:") <+> ppr ret
+checkValidDefaults tys = mapM_ (checkNoPartialType err) tys >> return ret
+  where ret = DefaultDecl tys
+        err = ptext (sLit "In declaration:") <+> ppr ret
 
 checkPartialTypeSignature :: LHsType RdrName -> P (LHsType RdrName, Maybe SrcSpan)
 checkPartialTypeSignature fullTy = case fullTy of
@@ -925,7 +922,7 @@ checkPartialTypeSignature fullTy = case fullTy of
     -- Unnamed wildcards aren't allowed in the context
     case unnamedInCtxt of
       (Found lc : _) -> err hintUnnamedConstraint lc fullTy
-      _            -> return ()
+      _              -> return ()
     -- Calculcate the set of named wildcards in the context that aren't in the monotype
     let namedWildcardsNotInMonotype = Set.fromList (namedWildcards namedInCtxt)
                                       `Set.difference`

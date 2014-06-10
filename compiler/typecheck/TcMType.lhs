@@ -211,9 +211,7 @@ tcSkolDFunType :: Type -> TcM ([TcTyVar], TcThetaType, TcType)
 -- Instantiate a type signature with skolem constants, but 
 -- do *not* give them fresh names, because we want the name to
 -- be in the type environment: it is lexically scoped.
-tcSkolDFunType ty
-  = do { (tvs, theta, rho) <- tcInstType (\tvs -> return (tcSuperSkolTyVars tvs)) ty
-       ; return (tvs, theta, rho) }
+tcSkolDFunType ty = tcInstType (\tvs -> return (tcSuperSkolTyVars tvs)) ty
 
 tcSuperSkolTyVars :: [TyVar] -> (TvSubst, [TcTyVar])
 -- Make skolem constants, but do *not* give them new names, as above
@@ -280,9 +278,7 @@ tcInstSigTyVars = mapAccumLM inst_tv (mkTopTvSubst [])
 tcInstSkolType :: TcType -> TcM ([TcTyVar], TcThetaType, TcType)
 -- Instantiate a type with fresh skolem constants
 -- Binding location comes from the monad
-tcInstSkolType ty
-  = do { (tvs, theta, rho) <- tcInstType tcInstSkolTyVars ty
-       ; return (tvs, theta, rho) }
+tcInstSkolType ty = tcInstType tcInstSkolTyVars ty
 
 newSigTyVar :: Name -> Kind -> TcM TcTyVar
 newSigTyVar name kind
@@ -615,11 +611,10 @@ skolemiseUnboundMetaTyVar tv details
         ; writeMetaTyVar tv (mkTyVarTy final_tv)
         ; return final_tv }
   where
-    -- if a wildcard type called _a is generalised, we rename it to tw_a
+    -- If a wildcard type called _a is generalised, we rename it to tw_a
     generaliseWildcardVarName :: OccName -> OccName
-    generaliseWildcardVarName name
-      | startsWithUnderscore name = mkOccNameFS (occNameSpace name)
-                                      (appendFS (fsLit "w") (occNameFS name))
+    generaliseWildcardVarName name | startsWithUnderscore name
+      = mkOccNameFS (occNameSpace name) (appendFS (fsLit "w") (occNameFS name))
     generaliseWildcardVarName name = name
 \end{code}
 

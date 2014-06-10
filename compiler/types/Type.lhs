@@ -142,7 +142,6 @@ module Type (
         tidyTyVarOcc,
         tidyTopType,
         tidyKind,
-        tidyTypeWithEnv,
     ) where
 
 #include "HsVersions.h"

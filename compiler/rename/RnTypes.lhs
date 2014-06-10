@@ -342,7 +342,7 @@ rnForAll doc exp extra kvs forall_tyvars ctxt ty
         -- so that we can later print it correctly
 
 ---------------
-bindSigTyVarsFV :: ([Name],[Name])
+bindSigTyVarsFV :: ([Name], [Name])
                 -> RnM (a, FreeVars)
                 -> RnM (a, FreeVars)
 -- Used just before renaming the defn of a function

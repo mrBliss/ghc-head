@@ -21,7 +21,7 @@ module RnExpr (
 import {-# SOURCE #-} TcSplice( runQuasiQuoteExpr )
 
 import RnBinds   ( rnLocalBindsAndThen, rnLocalValBindsLHS, rnLocalValBindsRHS,
-                   rnMatchGroup, rnGRHS, makeMiniFixityEnv )
+                   rnMatchGroup, rnGRHS, makeMiniFixityEnv)
 import HsSyn
 import TcRnMonad
 import Module           ( getModule )

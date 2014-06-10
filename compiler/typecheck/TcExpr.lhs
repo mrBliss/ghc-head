@@ -230,12 +230,13 @@ tcExpr (ExprWithTySig expr sig_ty wcs) res_ty
 
                   -- Remember to extend the lexical type-variable environment
                   -- See Note [More instantiated than scoped] in TcBinds
-               tcExtendTyVarEnv2
+               tcExtendTyVarEnv2 
                   [(n,tv) | (Just n, tv) <- findScopedTyVars sig_ty sig_tc_ty skol_tvs] $
 
                tcMonoExprNC expr res_ty
 
       ; let inner_expr = ExprWithTySigOut (mkLHsWrap gen_fn expr') sig_ty nwc_tvs
+
       ; (inst_wrap, rho) <- deeplyInstantiate ExprSigOrigin sig_tc_ty
       ; tcWrapResult (mkHsWrap inst_wrap inner_expr) rho res_ty } }
 

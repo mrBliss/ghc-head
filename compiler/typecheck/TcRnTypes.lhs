@@ -1236,7 +1236,7 @@ isEmptyWC (WC { wc_flat = f, wc_impl = i, wc_insol = n })
 
 insolubleWC :: WantedConstraints -> Bool
 -- True if there are any insoluble constraints in the wanted bag
-insolubleWC wc = not (isEmptyBag (filterBag (not . isWildcardCt) (wc_insol wc))) -- TODOT terrible hack!
+insolubleWC wc = not (isEmptyBag (filterBag (not . isWildcardCt) (wc_insol wc))) -- TODOT temporary hack!
 -- insolubleWC wc = not (isEmptyBag (wc_insol wc))
                || anyBag ic_insol (wc_impl wc)
 

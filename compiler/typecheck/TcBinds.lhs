@@ -418,7 +418,6 @@ mkEdges sig_fn binds
     | (bind, key) <- keyd_binds
     ]
   where
-    -- No signature or a partial signature
     no_sig :: Name -> Bool
     no_sig n = noCompleteSig (sig_fn n)
 
@@ -466,9 +465,9 @@ tcPolyBinds top_lvl sig_fn prag_fn rec_group rec_tc bind_list
                          binder_names bind_list sig_fn
     ; traceTc "Generalisation plan" (ppr plan)
     ; result@(tc_binds, poly_ids, _) <- case plan of
-         NoGen                  -> tcPolyNoGen rec_tc prag_fn sig_fn bind_list
-         InferGen mn cl         -> tcPolyInfer rec_tc prag_fn sig_fn mn cl bind_list
-         CheckGen lbind sig     -> tcPolyCheck rec_tc prag_fn sig lbind
+         NoGen               -> tcPolyNoGen rec_tc prag_fn sig_fn bind_list
+         InferGen mn cl      -> tcPolyInfer rec_tc prag_fn sig_fn mn cl bind_list
+         CheckGen lbind sig  -> tcPolyCheck rec_tc prag_fn sig lbind
 
         -- Check whether strict bindings are ok
         -- These must be non-recursive etc, and are not generalised
@@ -663,6 +662,7 @@ mkExport :: PragFun
 
 -- Pre-condition: the qtvs and theta are already zonked
 
+-- TODO: rewrite this function, because it's not clear enough what's done and why it's done
 mkExport prag_fn qtvs theta (poly_name, mb_sig, mono_id)
   = do  { mono_ty <- zonkTcType (idType mono_id)
         ; gbl_tvs <- tcGetGlobalTyVars
@@ -1377,9 +1377,9 @@ data GeneralisationPlan
 -- no "polymorphic Id" and "monmomorphic Id"; there is just the one
 
 instance Outputable GeneralisationPlan where
-  ppr NoGen           = ptext (sLit "NoGen")
-  ppr (InferGen b c)  = ptext (sLit "InferGen") <+> ppr b <+> ppr c
-  ppr (CheckGen _ s)  = ptext (sLit "CheckGen") <+> ppr s
+  ppr NoGen          = ptext (sLit "NoGen")
+  ppr (InferGen b c) = ptext (sLit "InferGen") <+> ppr b <+> ppr c
+  ppr (CheckGen _ s) = ptext (sLit "CheckGen") <+> ppr s
 
 decideGeneralisationPlan
    :: DynFlags -> TcTypeEnv -> [Name]

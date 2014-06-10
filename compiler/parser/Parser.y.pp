@@ -1433,12 +1433,13 @@ sigdecl :: { Located (OrdList (LHsDecl RdrName)) }
         :
         -- See Note [Declaration/signature overlap] for why we need infixexp here
           infixexp '::' sigtypedoc
-                        {% do (ty, extra) <- checkPartialTypeSignature $3
-                        ; s <- checkValSig $1 ty extra
-                        ; return (LL $ unitOL (LL $ SigD s)) }
+                        {% do { (ty, extra) <- checkPartialTypeSignature $3
+                              ; s <- checkValSig $1 ty extra
+                              ; return (LL $ unitOL (LL $ SigD s)) } }
         | var ',' sig_vars '::' sigtypedoc
-                                {% do (ty, extra) <- checkPartialTypeSignature $5
-                                ; return $ LL $ toOL [ LL $ SigD (TypeSig ($1 : reverse (unLoc $3)) ty extra []) ] }
+                                {% do { (ty, extra) <- checkPartialTypeSignature $5
+                                      ; let sig = TypeSig ($1 : reverse (unLoc $3)) ty extra []
+                                      ; return $ LL $ toOL [ LL $ SigD sig ] } }
 
         | infix prec ops        { LL $ toOL [ LL $ SigD (FixSig (FixitySig n (Fixity $2 (unLoc $1))))
                                              | n <- unLoc $3 ] }

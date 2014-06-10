@@ -52,7 +52,7 @@ import Digraph		( SCC(..) )
 import Bag
 import Outputable
 import FastString
-import Data.List	( partition, sort, nubBy )
+import Data.List        ( partition, sort, nubBy )
 import Maybes		( orElse )
 import Util             ( filterOut )
 import Control.Monad
@@ -448,7 +448,7 @@ rnBindLHS name_maker _ bind@(PatSynBind{ patsyn_id = rdrname@(L nameLoc _) })
 
 rnBindLHS _ _ b = pprPanic "rnBindHS" (ppr b)
 
-rnLBind :: (Name -> ([Name], [Name]))            -- Signature tyvar function
+rnLBind :: (Name -> ([Name], [Name]))   -- Signature tyvar function
         -> LHsBindLR Name RdrName
         -> RnM (LHsBind Name, [Name], Uses)
 rnLBind sig_fn (L loc bind)
@@ -457,7 +457,7 @@ rnLBind sig_fn (L loc bind)
        ; return (L loc bind', bndrs, dus) }
 
 -- assumes the left-hands-side vars are in scope
-rnBind :: (Name -> ([Name],[Name]))		-- Signature tyvar function
+rnBind :: (Name -> ([Name], [Name]))    -- Signature tyvar function
        -> HsBindLR Name RdrName
        -> RnM (HsBind Name, [Name], Uses)
 rnBind _ bind@(PatBind { pat_lhs = pat
@@ -609,7 +609,7 @@ depAnalBinds binds_w_dus
 --	f = rhs
 --	The 'a' scopes over the rhs
 --
--- The first list of names is always bound in the RHS, the second 
+-- The first list of names is always bound in the RHS, the second
 -- list of names is only bound if ScopedTypeVariables is enabled.
 -- Specifically, named wildcards in partial type sigantures area
 -- always bound in the RHS, variables bound by an explicit forall
@@ -622,19 +622,19 @@ depAnalBinds binds_w_dus
 --	     (x,y) = e
 --      In e, 'a' will be in scope, and it'll be the one from 'y'!
 
-mkSigTvFn :: [LSig Name] -> (Name -> ([Name],[Name]))
+mkSigTvFn :: [LSig Name] -> (Name -> ([Name], [Name]))
 -- Return a lookup function that maps an Id Name to the names
 -- of the type variables that should scope over its body..
 mkSigTvFn sigs
-  = \n -> lookupNameEnv env n `orElse` ([],[])
+  = \n -> lookupNameEnv env n `orElse` ([], [])
   where
     extractScopedTyVars :: LHsType Name -> [Name]
     extractScopedTyVars (L _ (HsForAllTy Explicit _ ltvs _ _)) = hsLKiTyVarNames ltvs
     extractScopedTyVars _ = []
 
-    env :: NameEnv ([Name],[Name])
+    env :: NameEnv ([Name], [Name])
     env = mkNameEnv [ (name, (nwcs, extractScopedTyVars ty))  -- Kind variables and type variables
-		    | L _ (TypeSig names ty _ nwcs) <- sigs
+                    | L _ (TypeSig names ty _ nwcs) <- sigs
                     , (L _ name) <- names]
 	-- Note the pattern-match on "Explicit"; we only bind
 	-- type variables from signatures with an explicit top-level for-all
@@ -658,7 +658,7 @@ a binder.
 
 \begin{code}
 rnMethodBinds :: Name			-- Class name
-	      -> (Name -> ([Name],[Name]))	-- Signature tyvar function
+              -> (Name -> ([Name], [Name]))  -- Signature tyvar function
 	      -> LHsBinds RdrName
 	      -> RnM (LHsBinds Name, FreeVars)
 
@@ -682,7 +682,7 @@ rnMethodBinds cls sig_fn binds
 	    ; return (binds `unionBags` bind', fvs_bind `plusFV` fvs) }
 
 rnMethodBind :: Name
-	      -> (Name -> ([Name],[Name]))
+	      -> (Name -> ([Name], [Name]))
 	      -> LHsBindLR RdrName RdrName
 	      -> RnM (Bag (LHsBindLR Name Name), FreeVars)
 rnMethodBind cls sig_fn 
@@ -746,7 +746,6 @@ renameSigs ctxt sigs
 
 	; return (good_sigs, sig_fvs) } 
 
-
 ----------------------
 -- We use lookupSigOccRn in the signatures, which is a little bit unsatisfactory
 -- because this won't work for:
@@ -763,10 +762,10 @@ renameSig _ (IdSig x)
   = return (IdSig x, emptyFVs)	  -- Actually this never occurs
 
 renameSig ctxt sig@(TypeSig vs ty extra _)
-  = do	{ new_vs <- mapM (lookupSigOccRn ctxt sig) vs
+  = do  { new_vs <- mapM (lookupSigOccRn ctxt sig) vs
         -- (named and anonymous) wildcards are bound here:
         -- figure out which named wildcards are used,
-        --   and transform unnamed wildcards to named ones with fresh names
+        --  and transform unnamed wildcards to named ones with fresh names
         ; (nwcs, awcs, ty') <- extractWildcards ty
         ; rdr_env <- getLocalRdrEnv
         ; let nwcs' = nubBy eqLocated $ filterOut (flip (elemLocalRdrEnv . unLoc) rdr_env) nwcs

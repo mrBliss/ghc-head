@@ -161,19 +161,19 @@ initTc hsc_env hsc_src keep_rn_syntax mod do_this
                 tcg_dependent_files = dependent_files_var
              } ;
              lcl_env = TcLclEnv {
-                tcl_errs            = errs_var,
-                tcl_loc             = mkGeneralSrcSpan (fsLit "Top level"),
-                tcl_ctxt            = [],
-                tcl_rdr             = emptyLocalRdrEnv,
-                tcl_th_ctxt         = topStage,
-                tcl_th_bndrs        = emptyNameEnv,
-                tcl_arrow_ctxt      = NoArrowCtxt,
-                tcl_env             = emptyNameEnv,
-                tcl_bndrs           = [],
-                tcl_tidy            = emptyTidyEnv,
-                tcl_tyvars          = tvs_var,
-                tcl_lie             = lie_var,
-                tcl_untch           = noUntouchables
+                tcl_errs       = errs_var,
+                tcl_loc        = mkGeneralSrcSpan (fsLit "Top level"),
+                tcl_ctxt       = [],
+                tcl_rdr        = emptyLocalRdrEnv,
+                tcl_th_ctxt    = topStage,
+                tcl_th_bndrs   = emptyNameEnv,
+                tcl_arrow_ctxt = NoArrowCtxt,
+                tcl_env        = emptyNameEnv,
+                tcl_bndrs      = [],
+                tcl_tidy       = emptyTidyEnv,
+                tcl_tyvars     = tvs_var,
+                tcl_lie        = lie_var,
+                tcl_untch      = noUntouchables
              } ;
         } ;
 

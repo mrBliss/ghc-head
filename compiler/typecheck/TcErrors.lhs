@@ -109,8 +109,7 @@ reportUnsolved wanted
 reportUnsolved2 :: WantedConstraints -> EvBindsVar -> TcM ()
 reportUnsolved2 wanted binds_var
   = do { defer <- goptM Opt_DeferTypeErrors
-       ; report_unsolved (Just binds_var) defer wanted
-       }
+       ; report_unsolved (Just binds_var) defer wanted }
 
 reportAllUnsolved :: WantedConstraints -> TcM ()
 -- Report all unsolved goals, even if -fdefer-type-errors is on

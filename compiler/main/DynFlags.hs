@@ -2849,6 +2849,7 @@ xFlags = [
   ( "ImplicitParams",                   Opt_ImplicitParams, nop ),
   ( "ScopedTypeVariables",              Opt_ScopedTypeVariables, nop ),
   ( "AllowAmbiguousTypes",              Opt_AllowAmbiguousTypes, nop),
+
   ( "PatternSignatures",                Opt_ScopedTypeVariables,
     deprecatedForExtension "ScopedTypeVariables" ),
 

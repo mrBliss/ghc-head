@@ -403,13 +403,14 @@ mkExplicitHsForAllTy tvs ctxt ty = mkHsForAllTy Explicit tvs ctxt ty
 mkHsForAllTy :: HsExplicitFlag -> [LHsTyVarBndr RdrName] -> LHsContext RdrName -> LHsType RdrName -> HsType RdrName
 -- Smart constructor for HsForAllTy
 mkHsForAllTy exp tvs (L _ []) ty = mk_forall_ty exp tvs ty
-mkHsForAllTy exp tvs ctxt'    ty = HsForAllTy exp extra (mkHsQTvs tvs) restCtxt ty
-  where ctxt = (fmap ignoreParens) `fmap` ctxt'
-        ignoreParens (L _ (HsParTy ty)) = ty
-        ignoreParens ty                 = ty
-        (restCtxt, extra)
+mkHsForAllTy exp tvs ctxt'    ty = HsForAllTy exp extra (mkHsQTvs tvs) cleanCtxt ty
+  where ctxt = (fmap ignoreParens) `fmap` ctxt' -- Remove parens
+        -- Separate the extra-constraints wildcard when present
+        (cleanCtxt, extra)
           | (L l HsWildcardTy) <- last (unLoc ctxt) = (init `fmap` ctxt, Just l)
           | otherwise                               = (ctxt, Nothing)
+        ignoreParens (L _ (HsParTy ty)) = ty
+        ignoreParens ty                 = ty
 
 
 -- mk_forall_ty makes a pure for-all type (no context)
@@ -432,7 +433,7 @@ _        `plus` _        = Explicit
 hsExplicitTvs :: LHsType Name -> [Name]
 -- The explicitly-given forall'd type variables of a HsType
 hsExplicitTvs (L _ (HsForAllTy Explicit _ tvs _ _)) = hsLKiTyVarNames tvs
-hsExplicitTvs _                                   = []
+hsExplicitTvs _                                     = []
 
 ---------------------
 hsTyVarName :: HsTyVarBndr name -> name
@@ -684,7 +685,7 @@ ppr_mono_ty _    (HsCoreTy ty)       = ppr ty
 ppr_mono_ty _    (HsExplicitListTy _ tys) = quote $ brackets (interpp'SP tys)
 ppr_mono_ty _    (HsExplicitTupleTy _ tys) = quote $ parens (interpp'SP tys)
 ppr_mono_ty _    (HsTyLit t)         = ppr_tylit t
-ppr_mono_ty _    HsWildcardTy        = text "_"
+ppr_mono_ty _    HsWildcardTy        = ptext (sLit "_")
 ppr_mono_ty _    (HsNamedWildcardTy name) = ppr name
 
 

@@ -494,9 +494,9 @@ kcTyClDecl (ClassDecl { tcdLName = L _ name, tcdTyVars = hs_tvs
     do  { _ <- tcHsContext ctxt
         ; mapM_ (wrapLocM kc_sig)     sigs }
   where
-    kc_sig (TypeSig _ op_ty _ _)  = discardResult (tcHsLiftedType op_ty)
-    kc_sig (GenericSig _ op_ty) = discardResult (tcHsLiftedType op_ty)
-    kc_sig _                    = return ()
+    kc_sig (TypeSig _ op_ty _ _) = discardResult (tcHsLiftedType op_ty)
+    kc_sig (GenericSig _ op_ty)  = discardResult (tcHsLiftedType op_ty)
+    kc_sig _                     = return ()
 
 kcTyClDecl (ForeignType {}) = return ()
 

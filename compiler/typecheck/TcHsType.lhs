@@ -311,7 +311,6 @@ tcCheckHsTypeAndGen hs_ty kind
        ; kvs <- zonkTcTypeAndFV ty 
        ; kvs <- kindGeneralize kvs
        ; return (mkForAllTys kvs ty) }
-
 \end{code}
 
 Like tcExpr, tc_hs_type takes an expected kind which it unifies with

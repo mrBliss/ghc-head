@@ -485,7 +485,7 @@ renameDeriv is_boot inst_infos bagBinds
                 -- scope (yuk), and rename the method binds
            ASSERT( null sigs )
            bindLocalNamesFV (map Var.varName tyvars) $
-           do { (rn_binds, fvs) <- rnMethodBinds (is_cls_nm inst) (\_ -> ([],[])) binds
+           do { (rn_binds, fvs) <- rnMethodBinds (is_cls_nm inst) (\_ -> ([], [])) binds
               ; let binds' = InstBindings { ib_binds = rn_binds
                                            , ib_pragmas = []
                                            , ib_extensions = exts
