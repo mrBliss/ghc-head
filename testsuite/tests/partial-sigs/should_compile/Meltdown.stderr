@@ -4,13 +4,9 @@ TYPE SIGNATURES
     forall param1 param2.
     NukeMonad param1 param2 () -> NukeMonad param1 param2 ()
 TYPE CONSTRUCTORS
-  NukeMonad :: * -> * -> * -> *
+  type role NukeMonad phantom phantom phantom
   data NukeMonad a b c
-    No C type associated
-    Roles: [phantom, phantom, phantom]
-    RecFlag NonRecursive, Promotable
-    =
-    FamilyInstance: none
+    Promotable
 COERCION AXIOMS
 INSTANCES
   instance Monad (NukeMonad a b) -- Defined at Meltdown.hs:15:10

@@ -4,6 +4,7 @@ WildcardsInPatternAndExprSig.hs:4:18:
     Where: ‘w_a’ is a rigid type variable bound by
                  the inferred type of bar :: Maybe [w_a] -> w_a -> [w_a]
                  at WildcardsInPatternAndExprSig.hs:4:1
+    To use the inferred type, enable PartialTypeSignatures
     Relevant bindings include
       bar :: Maybe [w_a] -> w_a -> [w_a]
         (bound at WildcardsInPatternAndExprSig.hs:4:1)
@@ -16,6 +17,7 @@ WildcardsInPatternAndExprSig.hs:4:25:
     Where: ‘w_a’ is a rigid type variable bound by
                  the inferred type of bar :: Maybe [w_a] -> w_a -> [w_a]
                  at WildcardsInPatternAndExprSig.hs:4:1
+    To use the inferred type, enable PartialTypeSignatures
     Relevant bindings include
       bar :: Maybe [w_a] -> w_a -> [w_a]
         (bound at WildcardsInPatternAndExprSig.hs:4:1)
@@ -28,6 +30,7 @@ WildcardsInPatternAndExprSig.hs:4:38:
     Where: ‘w_a’ is a rigid type variable bound by
                  the inferred type of bar :: Maybe [w_a] -> w_a -> [w_a]
                  at WildcardsInPatternAndExprSig.hs:4:1
+    To use the inferred type, enable PartialTypeSignatures
     Relevant bindings include
       bar :: Maybe [w_a] -> w_a -> [w_a]
         (bound at WildcardsInPatternAndExprSig.hs:4:1)
@@ -40,6 +43,7 @@ WildcardsInPatternAndExprSig.hs:4:49:
     Where: ‘w_a’ is a rigid type variable bound by
                  the inferred type of bar :: Maybe [w_a] -> w_a -> [w_a]
                  at WildcardsInPatternAndExprSig.hs:4:1
+    To use the inferred type, enable PartialTypeSignatures
     Relevant bindings include
       x :: w_a (bound at WildcardsInPatternAndExprSig.hs:4:13)
       bar :: Maybe [w_a] -> w_a -> [w_a]
@@ -53,6 +57,7 @@ WildcardsInPatternAndExprSig.hs:4:66:
     Where: ‘w_a’ is a rigid type variable bound by
                  the inferred type of bar :: Maybe [w_a] -> w_a -> [w_a]
                  at WildcardsInPatternAndExprSig.hs:4:1
+    To use the inferred type, enable PartialTypeSignatures
     Relevant bindings include
       z :: w_a (bound at WildcardsInPatternAndExprSig.hs:4:44)
       x :: w_a (bound at WildcardsInPatternAndExprSig.hs:4:13)

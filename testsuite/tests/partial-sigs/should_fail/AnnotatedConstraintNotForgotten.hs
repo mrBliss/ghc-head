@@ -2,7 +2,7 @@
 module AnnotatedConstraintNotForgotten where
 
 foo :: (Eq a, _) => a -> String
-foo = show
+foo x = show x
 
 
 data Foo = Foo deriving Show

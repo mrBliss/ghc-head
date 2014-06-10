@@ -1,14 +1,8 @@
 TYPE SIGNATURES
   bar :: Int -> Foo Bool () Int
 TYPE CONSTRUCTORS
-  Foo :: * -> * -> * -> *
-  data Foo x y z
-    No C type associated
-    Roles: [representational, representational, representational]
-    RecFlag NonRecursive, Promotable
-    = Foo :: x -> y -> z -> Foo x y z
-        Stricts: _ _ _
-    FamilyInstance: none
+  data Foo x y z = Foo x y z
+    Promotable
 COERCION AXIOMS
 Dependent modules: []
 Dependent packages: [base, ghc-prim, integer-gmp]
