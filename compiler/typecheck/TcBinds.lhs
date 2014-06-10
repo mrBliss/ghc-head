@@ -567,34 +567,36 @@ tcPolyInfer rec_tc prag_fn tc_sig_fn mono closed bind_list
              <- tcExtendTyVarEnv nwcs $
                 captureConstraints $
                 tcMonoBinds rec_tc tc_sig_fn LetLclBndr bind_list
-       ; let wantedSig = wantedFromSigs bind_list
-             wanted = wantedSig `addWantedToImplic` wantedBody
+       ; let mb_thetas = map (\bind -> sig_theta <$> mbSig bind) bind_list
              name_taus = [(name, idType mono_id) | (name, _, mono_id) <- mono_infos]
-             ann_tvs =  unionVarSets $ map (extractVars sig_tvs) bind_list
-             extra_constraints = any (isJust . extraConstraintsMVar) bind_list
+             ann_tvs   = unionVarSets $ map (extractVars sig_tvs) bind_list
+             extra_constraints = all (\bind -> isJust (extraConstraintsMVar bind) ||
+                                               isNothing (mbSig bind)) bind_list
+       ; ev_vars <- concat <$> mapM newEvVars (catMaybes mb_thetas)
+       ; (ev_binds_var, wanted) <- makeWanted ev_vars (wantedFromSigs bind_list) wantedBody
        ; traceTc "simplifyInfer call" (ppr name_taus $$ ppr wanted)
-       ; ev_binds_var <- newTcEvBinds
 
        ; (qtvs, givens, mr_bites, ev_binds) <-
                           simplifyInfer closed mono extra_constraints name_taus wanted
                                         (Just ev_binds_var) ann_tvs
-
-       ; theta <- zonkTcThetaType (map evVarPred givens)
-       ; mapM_ (unifyExtraConstraints theta) bind_list
+       ; annotated <- zonkTcThetaType (map evVarPred ev_vars)
+       ; inferred  <- zonkTcThetaType (map evVarPred givens)
+       ; let theta = annotated ++ inferred
+       -- Fill in the extra-constraints wildcard(s) with theta
+       ; mapM_ (unifyExtraConstraints inferred) bind_list
        -- We need to check inferred theta for validity. The reason is that we
        -- might have inferred theta that requires language extension that is
        -- not turned on. See #8883. Example can be found in the T8883 testcase.
        ; checkValidTheta (InfSigCtxt (fst . head $ name_taus)) theta
-       -- Fill in the extra-constraints wildcard(s) with theta
        ; exports <- checkNoErrs $ mapM (mkExport prag_fn qtvs theta) mono_infos
 
        ; loc <- getSrcSpanM
        ; let poly_ids = map abe_poly exports
              final_closed | closed && not mr_bites = TopLevel
                           | otherwise              = NotTopLevel
-             abs_bind = L loc $ 
+             abs_bind = L loc $
                         AbsBinds { abs_tvs = qtvs
-                                 , abs_ev_vars = givens, abs_ev_binds = ev_binds
+                                 , abs_ev_vars = ev_vars ++ givens, abs_ev_binds = ev_binds
                                  , abs_exports = exports, abs_binds = binds' }
 
        ; traceTc "Binding:" (ppr final_closed $$
@@ -617,20 +619,31 @@ tcPolyInfer rec_tc prag_fn tc_sig_fn mono closed bind_list
     wantedFromSigs :: [LHsBind Name] -> WantedConstraints
     wantedFromSigs = unionsWC . mapMaybe (\bind -> sig_wanted <$> mbSig bind)
 
-    addWantedToImplic :: WantedConstraints -> WantedConstraints -> WantedConstraints
-    -- We add the wc_insol and wc_flat from the first argument to the
-    -- ic_wanted of the first element of the second argument.
-    addWantedToImplic w1 w2@(WC { wc_impl = impls })
-      | impl : impls <- bagToList impls
-      = let new_wanted = w1 `andWC` ic_wanted impl
-            new_impl   = impl { ic_wanted = new_wanted, ic_insol = insolubleWC new_wanted }
-        in w2 { wc_impl = listToBag $ new_impl : impls }
-      | otherwise = w1 `andWC` w2
-
     unifyExtraConstraints :: TcThetaType -> LHsBind Name -> TcM ()
     unifyExtraConstraints theta bind = case extraConstraintsMVar bind of
       Just extra_mvar -> unifyExtraConstraintsHole extra_mvar theta >> return ()
       Nothing         -> return ()
+
+    makeWanted :: [EvVar] -> WantedConstraints -> WantedConstraints -> TcM (EvBindsVar, WantedConstraints)
+    makeWanted ev_vars wantedSig wantedBody
+      | null ev_vars -- No givens, thus no implication needed
+      = do { ev_binds_var <- newTcEvBinds
+           ; return (ev_binds_var, wantedSig `andWC` wantedBody) }
+      | otherwise
+      = do { ev_binds_var <- newTcEvBinds
+           ; lcl_env <- getLclEnv
+           ; let wanted = wantedSig `andWC` wantedBody
+                 implic = Implic { ic_untch  = noUntouchables
+                                 , ic_skols  = []
+                                 , ic_fsks   = []
+                                 , ic_no_eqs = False
+                                 , ic_given  = ev_vars
+                                 , ic_wanted = wanted
+                                 , ic_insol  = insolubleWC wanted
+                                 , ic_binds  = ev_binds_var
+                                 , ic_info   = UnkSkol -- TODOT add proper info
+                                 , ic_env    = lcl_env }
+           ; return (ev_binds_var, emptyWC { wc_impl = unitBag implic }) }
 
 --------------
 mkExport :: PragFun

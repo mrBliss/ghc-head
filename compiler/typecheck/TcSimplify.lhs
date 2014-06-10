@@ -384,6 +384,12 @@ simplifyInfer _top_lvl apply_mr extra_constraints name_taus wanteds
                         -- Don't add the quantified variables here, because
                         -- they are also bound in ic_skols and we want them to be
                         -- tidied uniformly
+       ; if not (null minimal_flat_preds || extra_constraints)
+         then do { unsolved_wanted <- newFlatWanteds (GivenOrigin skol_info) minimal_flat_preds
+                 ; reportUnsolved2 (mkFlatWC unsolved_wanted) ev_binds_var
+                 ; return (qtvs, [], mr_bites, TcEvBinds ev_binds_var) }
+         else do
+       {
 
        ; minimal_bound_ev_vars <- mapM TcM.newEvVar minimal_flat_preds
        ; let implic = Implic { ic_untch    = pushUntouchables untch
@@ -407,7 +413,7 @@ simplifyInfer _top_lvl apply_mr extra_constraints name_taus wanteds
                   , ptext (sLit "bound =") <+> ppr bound ]
 
        ; return ( qtvs, minimal_bound_ev_vars
-                , mr_bites,  TcEvBinds ev_binds_var) } }
+                , mr_bites,  TcEvBinds ev_binds_var) } } }
 
 
 quantifyPred :: TyVarSet           -- Quantifying over these
